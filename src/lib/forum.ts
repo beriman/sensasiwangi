@@ -4,6 +4,13 @@ import {
   ForumThread,
   ForumReply,
   VoteType,
+  ForumTag,
+  ForumNotification,
+  ForumSearchFilters,
+  ForumStatistics,
+  ForumBadge,
+  ForumUserBadge,
+  ForumMessage,
 } from "@/types/forum";
 
 // Experience points constants
@@ -30,6 +37,247 @@ export async function getForumCategories(): Promise<ForumCategory[]> {
 
   if (error) throw error;
   return data || [];
+}
+
+// Get all forum tags
+export async function getForumTags(): Promise<ForumTag[]> {
+  const { data, error } = await supabase
+    .from("forum_tags")
+    .select("*")
+    .order("name", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+// Search threads with filters
+export async function searchThreads(
+  searchTerm: string,
+  filters: ForumSearchFilters = {},
+): Promise<ForumThread[]> {
+  let query = supabase.from("forum_threads").select(
+    `
+      *,
+      user:users(full_name, avatar_url, exp)
+    `,
+  );
+
+  // Apply search term if provided
+  if (searchTerm) {
+    query = query.or(
+      `title.ilike.%${searchTerm}%,content.ilike.%${searchTerm}%`,
+    );
+  }
+
+  // Apply category filter
+  if (filters.categoryId) {
+    query = query.eq("category_id", filters.categoryId);
+  }
+
+  // Apply user filter
+  if (filters.userId) {
+    query = query.eq("user_id", filters.userId);
+  }
+
+  // Apply time frame filter
+  if (filters.timeFrame && filters.timeFrame !== "all") {
+    const now = new Date();
+    let startDate = new Date();
+
+    switch (filters.timeFrame) {
+      case "today":
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case "week":
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case "month":
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case "year":
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+    }
+
+    query = query.gte("created_at", startDate.toISOString());
+  }
+
+  // Apply sorting
+  if (filters.sortBy) {
+    switch (filters.sortBy) {
+      case "newest":
+        query = query.order("created_at", { ascending: false });
+        break;
+      case "oldest":
+        query = query.order("created_at", { ascending: true });
+        break;
+      case "trending":
+        query = query.order("last_activity_at", { ascending: false });
+        break;
+      // For most_votes and most_replies, we'll need to handle these after fetching
+      default:
+        query = query.order("created_at", { ascending: false });
+    }
+  } else {
+    // Default sort by newest
+    query = query.order("created_at", { ascending: false });
+  }
+
+  // Execute query
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  // Get additional data for each thread
+  const threadsWithData = await Promise.all(
+    (data || []).map(async (thread) => {
+      // Get vote counts
+      const { data: cendolCount } = await supabase
+        .from("forum_votes")
+        .select("id", { count: "exact" })
+        .eq("thread_id", thread.id)
+        .eq("vote_type", "cendol");
+
+      const { data: bataCount } = await supabase
+        .from("forum_votes")
+        .select("id", { count: "exact" })
+        .eq("thread_id", thread.id)
+        .eq("vote_type", "bata");
+
+      // Get reply count
+      const { data: replyCount } = await supabase
+        .from("forum_replies")
+        .select("id", { count: "exact" })
+        .eq("thread_id", thread.id);
+
+      // Get tags if thread has any
+      const { data: threadTags } = await supabase
+        .from("forum_thread_tags")
+        .select("tag:tag_id(*)")
+        .eq("thread_id", thread.id);
+
+      const tags = threadTags?.map((tt) => tt.tag) || [];
+
+      return {
+        ...thread,
+        vote_count: {
+          cendol: cendolCount?.length || 0,
+          bata: bataCount?.length || 0,
+        },
+        reply_count: replyCount?.length || 0,
+        tags,
+      };
+    }),
+  );
+
+  // Apply post-fetch sorting if needed
+  if (filters.sortBy === "most_votes") {
+    threadsWithData.sort((a, b) => {
+      const aVotes = (a.vote_count?.cendol || 0) - (a.vote_count?.bata || 0);
+      const bVotes = (b.vote_count?.cendol || 0) - (b.vote_count?.bata || 0);
+      return bVotes - aVotes;
+    });
+  } else if (filters.sortBy === "most_replies") {
+    threadsWithData.sort((a, b) => {
+      return (b.reply_count || 0) - (a.reply_count || 0);
+    });
+  }
+
+  // Apply tag filtering if needed
+  if (filters.tags && filters.tags.length > 0) {
+    return threadsWithData.filter((thread) => {
+      if (!thread.tags || thread.tags.length === 0) return false;
+      return thread.tags.some((tag: ForumTag) =>
+        filters.tags!.includes(tag.id),
+      );
+    });
+  }
+
+  return threadsWithData;
+}
+
+// Get forum statistics
+export async function getForumStatistics(): Promise<ForumStatistics> {
+  // Get total threads count
+  const { count: totalThreads, error: threadsError } = await supabase
+    .from("forum_threads")
+    .select("*", { count: "exact", head: true });
+
+  // Get total replies count
+  const { count: totalReplies, error: repliesError } = await supabase
+    .from("forum_replies")
+    .select("*", { count: "exact", head: true });
+
+  // Get total users count
+  const { count: totalUsers, error: usersError } = await supabase
+    .from("users")
+    .select("*", { count: "exact", head: true });
+
+  // Get active users (posted in last 30 days)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const { count: activeUsers, error: activeUsersError } = await supabase
+    .from("users")
+    .select("*", { count: "exact", head: true })
+    .or(
+      `updated_at.gte.${thirtyDaysAgo.toISOString()},created_at.gte.${thirtyDaysAgo.toISOString()}`,
+    );
+
+  // Get threads and replies created today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const { count: threadsToday, error: threadsTodayError } = await supabase
+    .from("forum_threads")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", today.toISOString());
+
+  const { count: repliesToday, error: repliesTodayError } = await supabase
+    .from("forum_replies")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", today.toISOString());
+
+  // Get top contributors
+  const { data: topContributors, error: contributorsError } = await supabase
+    .from("users")
+    .select("id, full_name, avatar_url, exp_points, level")
+    .order("exp_points", { ascending: false })
+    .limit(5);
+
+  // For each top contributor, get their thread and reply counts
+  const topContributorsWithCounts = await Promise.all(
+    (topContributors || []).map(async (user) => {
+      const { count: threadCount } = await supabase
+        .from("forum_threads")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+      const { count: replyCount } = await supabase
+        .from("forum_replies")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+      return {
+        user_id: user.id,
+        full_name: user.full_name || "User",
+        avatar_url: user.avatar_url,
+        exp: user.exp_points || 0,
+        thread_count: threadCount || 0,
+        reply_count: replyCount || 0,
+      };
+    }),
+  );
+
+  return {
+    totalThreads: totalThreads || 0,
+    totalReplies: totalReplies || 0,
+    totalUsers: totalUsers || 0,
+    activeUsers: activeUsers || 0,
+    threadsToday: threadsToday || 0,
+    repliesToday: repliesToday || 0,
+    topContributors: topContributorsWithCounts,
+  };
 }
 
 // Get threads by category
