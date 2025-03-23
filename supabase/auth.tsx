@@ -131,7 +131,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `https://stupefied-joliot7-jj4hq.dev-3.tempolabs.ai//success`,
+        redirectTo: `${currentOrigin}/success`,
         queryParams: {
           access_type: "offline",
           prompt: "consent",
