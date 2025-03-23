@@ -7,13 +7,17 @@ type AuthContextType = {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  signUp: (email: string, password: string, fullName: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    fullName: string,
+    role?: string,
+  ) => Promise<void>;
   signOut: () => Promise<void>;
+  updateUserRole: (userId: string, role: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Export all components and hooks at the end of the file
 
 // Custom hook for handling OAuth redirects
 function useHandleOAuthRedirect(setUser: (user: User | null) => void) {
@@ -50,7 +54,7 @@ function useHandleOAuthRedirect(setUser: (user: User | null) => void) {
 }
 
 // Auth Provider Component
-const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -75,17 +79,41 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName: string,
+    role: string = "user",
+  ) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName,
+          role: role,
         },
       },
     });
     if (error) throw error;
+  };
+
+  const updateUserRole = async (userId: string, role: string) => {
+    // Update the user's role in the auth.users metadata
+    const { error: authError } = await supabase.auth.admin.updateUserById(
+      userId,
+      { user_metadata: { role } },
+    );
+
+    if (authError) throw authError;
+
+    // Also update the role in the public.users table
+    const { error: dbError } = await supabase
+      .from("users")
+      .update({ role })
+      .eq("id", userId);
+
+    if (dbError) throw dbError;
   };
 
   const signIn = async (email: string, password: string) => {
@@ -120,7 +148,15 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, signIn, signInWithGoogle, signUp, signOut }}
+      value={{
+        user,
+        loading,
+        signIn,
+        signInWithGoogle,
+        signUp,
+        signOut,
+        updateUserRole,
+      }}
     >
       {children}
     </AuthContext.Provider>
@@ -128,12 +164,10 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 };
 
 // Auth Hook
-const useAuth = () => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
-
-export { AuthProvider, useAuth };

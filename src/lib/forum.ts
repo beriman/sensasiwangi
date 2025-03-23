@@ -11,6 +11,16 @@ const EXP_CREATE_THREAD = 1;
 const EXP_RECEIVE_CENDOL = 5;
 const EXP_RECEIVE_BATA = -3;
 
+// Level thresholds
+const LEVEL_THRESHOLDS = [
+  { level: 1, exp: 0, title: "Newbie" },
+  { level: 2, exp: 100, title: "Apprentice" },
+  { level: 3, exp: 300, title: "Enthusiast" },
+  { level: 4, exp: 600, title: "Expert" },
+  { level: 5, exp: 1000, title: "Master" },
+  { level: 6, exp: 1500, title: "Grandmaster" },
+];
+
 // Get all forum categories
 export async function getForumCategories(): Promise<ForumCategory[]> {
   const { data, error } = await supabase
@@ -164,7 +174,10 @@ export async function createThread(
   content: string,
   categoryId: string,
   userId: string,
-): Promise<ForumThread> {
+): Promise<{
+  thread: ForumThread;
+  levelUp?: { newLevel: number; oldLevel: number };
+}> {
   // Insert thread
   const { data, error } = await supabase
     .from("forum_threads")
@@ -180,9 +193,14 @@ export async function createThread(
   if (error) throw error;
 
   // Update user EXP
-  await updateUserExp(userId, EXP_CREATE_THREAD);
+  const expResult = await updateUserExp(userId, EXP_CREATE_THREAD);
 
-  return data;
+  return {
+    thread: data,
+    levelUp: expResult.leveledUp
+      ? { newLevel: expResult.newLevel!, oldLevel: expResult.oldLevel! }
+      : undefined,
+  };
 }
 
 // Create a reply to a thread
@@ -211,7 +229,9 @@ export async function vote(
   voteType: VoteType,
   threadId?: string,
   replyId?: string,
-): Promise<void> {
+): Promise<{
+  levelUp?: { newLevel: number; oldLevel: number; userId: string };
+}> {
   // Check if user has already voted
   const { data: existingVote } = await supabase
     .from("forum_votes")
@@ -237,7 +257,7 @@ export async function vote(
         voteType === "cendol" ? -EXP_RECEIVE_CENDOL : -EXP_RECEIVE_BATA;
       await updateUserExp(targetUserId, expChange);
     }
-    return;
+    return { levelUp: undefined };
   }
 
   // If vote exists but is different type, update it
@@ -263,9 +283,19 @@ export async function vote(
       // Add new vote EXP
       const newExpChange =
         voteType === "cendol" ? EXP_RECEIVE_CENDOL : EXP_RECEIVE_BATA;
-      await updateUserExp(targetUserId, newExpChange);
+      const expResult = await updateUserExp(targetUserId, newExpChange);
+
+      if (expResult.leveledUp) {
+        return {
+          levelUp: {
+            newLevel: expResult.newLevel!,
+            oldLevel: expResult.oldLevel!,
+            userId: targetUserId,
+          },
+        };
+      }
     }
-    return;
+    return { levelUp: undefined };
   }
 
   // Otherwise, insert new vote
@@ -284,8 +314,20 @@ export async function vote(
   if (targetUserId) {
     const expChange =
       voteType === "cendol" ? EXP_RECEIVE_CENDOL : EXP_RECEIVE_BATA;
-    await updateUserExp(targetUserId, expChange);
+    const expResult = await updateUserExp(targetUserId, expChange);
+
+    if (expResult.leveledUp) {
+      return {
+        levelUp: {
+          newLevel: expResult.newLevel!,
+          oldLevel: expResult.oldLevel!,
+          userId: targetUserId,
+        },
+      };
+    }
   }
+
+  return { levelUp: undefined };
 }
 
 // Get user's vote on a thread or reply
@@ -330,15 +372,37 @@ async function getReplyAuthor(replyId: string): Promise<string | null> {
 }
 
 // Update user experience points
-async function updateUserExp(userId: string, expChange: number): Promise<void> {
+async function updateUserExp(
+  userId: string,
+  expChange: number,
+): Promise<{ leveledUp: boolean; newLevel?: number; oldLevel?: number }> {
   const { data: user } = await supabase
     .from("users")
-    .select("exp")
+    .select("exp_points, level")
     .eq("id", userId)
     .single();
 
-  const currentExp = user?.exp || 0;
+  const currentExp = user?.exp_points || 0;
+  const currentLevel = user?.level || 1;
   const newExp = Math.max(0, currentExp + expChange); // Prevent negative EXP
 
-  await supabase.from("users").update({ exp: newExp }).eq("id", userId);
+  // Calculate new level client-side (though the trigger will handle this server-side)
+  let newLevel = 1;
+  for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (newExp >= LEVEL_THRESHOLDS[i].exp) {
+      newLevel = LEVEL_THRESHOLDS[i].level;
+      break;
+    }
+  }
+
+  await supabase.from("users").update({ exp_points: newExp }).eq("id", userId);
+
+  // Check if user leveled up
+  const leveledUp = newLevel > currentLevel;
+
+  return {
+    leveledUp,
+    newLevel: leveledUp ? newLevel : undefined,
+    oldLevel: leveledUp ? currentLevel : undefined,
+  };
 }

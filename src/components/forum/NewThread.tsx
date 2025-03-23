@@ -56,7 +56,18 @@ export default function NewThread() {
 
     try {
       setSubmitting(true);
-      const thread = await createThread(title, content, categoryId!, user!.id);
+      const result = await createThread(title, content, categoryId!, user!.id);
+
+      // Check for level up
+      if (result.levelUp) {
+        const { newLevel, oldLevel } = result.levelUp;
+        toast({
+          title: "Level Up!",
+          description: `Anda naik level dari ${oldLevel} ke ${newLevel}!`,
+          variant: "default",
+          className: "bg-gradient-to-r from-purple-600 to-pink-500 text-white",
+        });
+      }
 
       toast({
         title: "Berhasil",
@@ -64,7 +75,7 @@ export default function NewThread() {
       });
 
       // Redirect to the new thread
-      navigate(`/forum/thread/${thread.id}`);
+      navigate(`/forum/thread/${result.thread.id}`);
     } catch (error) {
       console.error("Error creating thread:", error);
       toast({
@@ -143,7 +154,14 @@ export default function NewThread() {
                 className="bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:opacity-90"
                 disabled={submitting}
               >
-                {submitting ? "Membuat Thread..." : "Buat Thread"}
+                {submitting ? (
+                  <>
+                    <LoadingSpinner className="mr-2" />
+                    Membuat Thread...
+                  </>
+                ) : (
+                  "Buat Thread"
+                )}
               </Button>
             </div>
           </form>

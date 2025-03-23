@@ -142,8 +142,9 @@ export default function ThreadDetail() {
     }
 
     try {
+      let result;
       if (isReply) {
-        await vote(user.id, voteType, undefined, targetId);
+        result = await vote(user.id, voteType, undefined, targetId);
 
         // Update UI optimistically
         const currentVote = userReplyVotes[targetId];
@@ -157,7 +158,7 @@ export default function ThreadDetail() {
           setUserReplyVotes({ ...userReplyVotes, [targetId]: voteType });
         }
       } else {
-        await vote(user.id, voteType, targetId);
+        result = await vote(user.id, voteType, targetId);
 
         // Update UI optimistically
         if (userThreadVote === voteType) {
@@ -165,6 +166,28 @@ export default function ThreadDetail() {
         } else {
           setUserThreadVote(voteType);
         }
+      }
+
+      // Check for level up
+      if (result.levelUp) {
+        const { newLevel, oldLevel, userId } = result.levelUp;
+        // Get user name from thread or replies
+        let userName = "User";
+        if (thread?.user_id === userId && thread?.user?.full_name) {
+          userName = thread.user.full_name;
+        } else {
+          const reply = replies.find((r) => r.user_id === userId);
+          if (reply?.user?.full_name) {
+            userName = reply.user.full_name;
+          }
+        }
+
+        toast({
+          title: "Level Up!",
+          description: `${userName} naik level dari ${oldLevel} ke ${newLevel}!`,
+          variant: "default",
+          className: "bg-gradient-to-r from-purple-600 to-pink-500 text-white",
+        });
       }
 
       // Refresh thread data to get updated vote counts

@@ -166,17 +166,104 @@ export type Database = {
           },
         ]
       }
+      marketplace_transactions: {
+        Row: {
+          amount: number
+          buyer_id: string
+          created_at: string | null
+          id: string
+          product_description: string | null
+          product_name: string
+          seller_id: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          buyer_id: string
+          created_at?: string | null
+          id?: string
+          product_description?: string | null
+          product_name: string
+          seller_id: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          buyer_id?: string
+          created_at?: string | null
+          id?: string
+          product_description?: string | null
+          product_name?: string
+          seller_id?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_transactions_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_transactions_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_badges: {
+        Row: {
+          awarded_at: string | null
+          badge_description: string | null
+          badge_name: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          awarded_at?: string | null
+          badge_description?: string | null
+          badge_name: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          awarded_at?: string | null
+          badge_description?: string | null
+          badge_name?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           avatar_url: string | null
           created_at: string
           email: string | null
           exp: number | null
+          exp_points: number | null
           full_name: string | null
           id: string
           image: string | null
+          level: number | null
           name: string | null
-          token_identifier: string
+          role: string | null
+          title: string | null
+          token_identifier: string | null
           updated_at: string | null
           user_id: string | null
         }
@@ -185,11 +272,15 @@ export type Database = {
           created_at?: string
           email?: string | null
           exp?: number | null
+          exp_points?: number | null
           full_name?: string | null
-          id: string
+          id?: string
           image?: string | null
+          level?: number | null
           name?: string | null
-          token_identifier: string
+          role?: string | null
+          title?: string | null
+          token_identifier?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -198,11 +289,15 @@ export type Database = {
           created_at?: string
           email?: string | null
           exp?: number | null
+          exp_points?: number | null
           full_name?: string | null
           id?: string
           image?: string | null
+          level?: number | null
           name?: string | null
-          token_identifier?: string
+          role?: string | null
+          title?: string | null
+          token_identifier?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -213,7 +308,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      calculate_level: {
+        Args: {
+          exp_points: number
+        }
+        Returns: number
+      }
+      determine_title: {
+        Args: {
+          level: number
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

@@ -7,6 +7,7 @@ import Dashboard from "./components/pages/dashboard";
 import Success from "./components/pages/success";
 import Home from "./components/pages/home";
 import Forum from "./components/pages/forum";
+import AdminPanel from "./components/pages/admin";
 import { AuthProvider, useAuth } from "../supabase/auth";
 import { Toaster } from "./components/ui/toaster";
 import { LoadingScreen, LoadingSpinner } from "./components/ui/loading-spinner";
@@ -20,6 +21,25 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/login" />;
+  }
+
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen text="Authenticating..." />;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  // Check if user has admin role
+  if (!user.user_metadata?.role || user.user_metadata.role !== "admin") {
+    return <Navigate to="/dashboard" />;
   }
 
   return <>{children}</>;
@@ -47,6 +67,14 @@ function AppRoutes() {
         />
         <Route path="/success" element={<Success />} />
         <Route path="/forum/*" element={<Forum />} />
+        <Route
+          path="/admin/:tab?"
+          element={
+            <AdminRoute>
+              <AdminPanel />
+            </AdminRoute>
+          }
+        />
       </Routes>
       {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
     </>
