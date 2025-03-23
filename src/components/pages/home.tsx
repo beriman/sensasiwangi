@@ -136,8 +136,7 @@ export default function LandingPage() {
               Scentrium
             </h2>
             <h3 className="text-2xl font-medium text-gray-600 mb-6 max-w-3xl mx-auto">
-              The ultimate community platform for perfume enthusiasts and
-              creators
+              The ultimate community platform for perfume enthusiasts and creators TEST
             </h3>
             <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-6 text-xl">
               <Link to="/signup">
