@@ -45,20 +45,14 @@ export default function LandingPage() {
             <Link to="/forum" className="hover:text-gray-500">
               Forum
             </Link>
-            <Link to="/" className="hover:text-gray-500">
-              Features
+            <Link to="/marketplace" className="hover:text-gray-500">
+              Marketplace
             </Link>
-            <Link to="/" className="hover:text-gray-500">
-              Documentation
+            <Link to="/kelas" className="hover:text-gray-500">
+              Kelas
             </Link>
-            <Link to="/" className="hover:text-gray-500">
-              Components
-            </Link>
-            <Link to="/" className="hover:text-gray-500">
-              Examples
-            </Link>
-            <Link to="/" className="hover:text-gray-500">
-              Support
+            <Link to="/bisnis" className="hover:text-gray-500">
+              Bisnis
             </Link>
           </nav>
           <div className="flex items-center space-x-4">
