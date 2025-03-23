@@ -162,7 +162,7 @@ export default function UserProfileCard() {
                 className="w-full h-16 flex flex-col items-center justify-center gap-1 border-gray-200 hover:border-blue-200 hover:bg-blue-50"
               >
                 <ShoppingBag className="h-5 w-5 text-blue-500" />
-                <span className="text-xs font-medium">Market</span>
+                <span className="text-xs font-medium">Marketplace</span>
               </Button>
             </Link>
 

@@ -7,6 +7,7 @@ import Dashboard from "./components/pages/dashboard";
 import Success from "./components/pages/success";
 import Home from "./components/pages/home";
 import Forum from "./components/pages/forum";
+import Marketplace from "./components/pages/marketplace";
 import AdminPanel from "./components/pages/admin";
 import { AuthProvider, useAuth } from "../supabase/auth";
 import { Toaster } from "./components/ui/toaster";
@@ -67,6 +68,7 @@ function AppRoutes() {
         />
         <Route path="/success" element={<Success />} />
         <Route path="/forum/*" element={<Forum />} />
+        <Route path="/marketplace/*" element={<Marketplace />} />
         <Route
           path="/admin/:tab?"
           element={
