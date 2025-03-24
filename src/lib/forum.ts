@@ -685,6 +685,30 @@ export async function createReply(
   // Check for mentions in the content
   await createMentionNotification(content, userId, userName, threadId, data.id);
 
+  // Get thread title for email notifications
+  const { data: threadData } = await supabase
+    .from("forum_threads")
+    .select("title")
+    .eq("id", threadId)
+    .single();
+
+  // Send email notifications to thread followers
+  if (threadData) {
+    try {
+      await supabase.functions.invoke("send_thread_notification", {
+        body: {
+          threadId,
+          replyId: data.id,
+          replierName: userName,
+          threadTitle: threadData.title,
+        },
+      });
+    } catch (err) {
+      console.error("Error sending email notifications:", err);
+      // Continue execution even if email notification fails
+    }
+  }
+
   return data;
 }
 
@@ -1049,10 +1073,12 @@ export async function unbookmarkThread(
 export async function followThread(
   userId: string,
   threadId: string,
+  emailNotifications: boolean = true,
 ): Promise<void> {
   const { error } = await supabase.from("forum_follows").insert({
     user_id: userId,
     thread_id: threadId,
+    email_notifications: emailNotifications,
   });
 
   if (error) throw error;
@@ -1069,6 +1095,51 @@ export async function unfollowThread(
   });
 
   if (error) throw error;
+}
+
+// Toggle email notifications for a thread
+export async function toggleThreadEmailNotifications(
+  userId: string,
+  threadId: string,
+  enabled: boolean,
+): Promise<void> {
+  const { error } = await supabase
+    .from("forum_follows")
+    .update({ email_notifications: enabled })
+    .match({
+      user_id: userId,
+      thread_id: threadId,
+    });
+
+  if (error) throw error;
+}
+
+// Check if user is following a thread
+export async function isUserFollowingThread(
+  userId: string,
+  threadId: string,
+): Promise<{ following: boolean; emailNotifications: boolean }> {
+  const { data, error } = await supabase
+    .from("forum_follows")
+    .select("email_notifications")
+    .match({
+      user_id: userId,
+      thread_id: threadId,
+    })
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      // No rows returned - user is not following
+      return { following: false, emailNotifications: false };
+    }
+    throw error;
+  }
+
+  return {
+    following: true,
+    emailNotifications: data?.email_notifications ?? false,
+  };
 }
 
 // Report inappropriate content
@@ -1194,6 +1265,188 @@ export async function createNotification(
   });
 
   if (error) throw error;
+}
+
+// Create a poll for a thread
+export async function createPoll(
+  threadId: string,
+  question: string,
+  options: string[],
+  isMultipleChoice: boolean = false,
+  expiresInDays?: number,
+): Promise<{ poll: ForumPoll }> {
+  // Validate inputs
+  if (!question.trim()) {
+    throw new Error("Poll question cannot be empty");
+  }
+
+  if (options.length < 2) {
+    throw new Error("Poll must have at least 2 options");
+  }
+
+  if (options.some((option) => !option.trim())) {
+    throw new Error("Poll options cannot be empty");
+  }
+
+  // Calculate expiration date if provided
+  let expiresAt = null;
+  if (expiresInDays) {
+    const date = new Date();
+    date.setDate(date.getDate() + expiresInDays);
+    expiresAt = date.toISOString();
+  }
+
+  // Insert poll
+  const { data: pollData, error: pollError } = await supabase
+    .from("forum_polls")
+    .insert({
+      thread_id: threadId,
+      question,
+      is_multiple_choice: isMultipleChoice,
+      expires_at: expiresAt,
+    })
+    .select()
+    .single();
+
+  if (pollError) throw pollError;
+
+  // Insert poll options
+  const pollOptions = options.map((text) => ({
+    poll_id: pollData.id,
+    text,
+  }));
+
+  const { data: optionsData, error: optionsError } = await supabase
+    .from("forum_poll_options")
+    .insert(pollOptions)
+    .select();
+
+  if (optionsError) throw optionsError;
+
+  // Update thread to indicate it has a poll
+  await supabase
+    .from("forum_threads")
+    .update({ has_poll: true })
+    .eq("id", threadId);
+
+  return {
+    poll: {
+      ...pollData,
+      options: optionsData.map((option) => ({
+        ...option,
+        vote_count: 0,
+      })),
+    },
+  };
+}
+
+// Get poll for a thread
+export async function getPoll(
+  threadId: string,
+  userId?: string,
+): Promise<ForumPoll | null> {
+  // Get poll
+  const { data: poll, error: pollError } = await supabase
+    .from("forum_polls")
+    .select("*")
+    .eq("thread_id", threadId)
+    .single();
+
+  if (pollError) {
+    if (pollError.code === "PGRST116") {
+      // No rows returned
+      return null;
+    }
+    throw pollError;
+  }
+
+  if (!poll) return null;
+
+  // Get poll options with vote counts
+  const { data: options, error: optionsError } = await supabase
+    .from("forum_poll_options")
+    .select(
+      "*, vote_count:forum_poll_votes!forum_poll_votes_option_id_fkey(count)",
+    )
+    .eq("poll_id", poll.id);
+
+  if (optionsError) throw optionsError;
+
+  // Check if user has voted
+  let userVoted = false;
+  if (userId) {
+    const { count, error: voteError } = await supabase
+      .from("forum_poll_votes")
+      .select("*", { count: "exact", head: true })
+      .eq("poll_id", poll.id)
+      .eq("user_id", userId);
+
+    if (!voteError) {
+      userVoted = count > 0;
+    }
+  }
+
+  return {
+    ...poll,
+    options: options.map((option) => ({
+      ...option,
+      vote_count: option.vote_count?.length || 0,
+    })),
+    user_voted: userVoted,
+  };
+}
+
+// Vote on a poll option
+export async function votePollOption(
+  pollId: string,
+  optionId: string,
+  userId: string,
+): Promise<void> {
+  // Check if poll allows multiple choice
+  const { data: poll, error: pollError } = await supabase
+    .from("forum_polls")
+    .select("is_multiple_choice, expires_at")
+    .eq("id", pollId)
+    .single();
+
+  if (pollError) throw pollError;
+
+  // Check if poll has expired
+  if (poll.expires_at && new Date(poll.expires_at) < new Date()) {
+    throw new Error("This poll has expired");
+  }
+
+  // If not multiple choice, remove any existing votes by this user
+  if (!poll.is_multiple_choice) {
+    await supabase
+      .from("forum_poll_votes")
+      .delete()
+      .eq("poll_id", pollId)
+      .eq("user_id", userId);
+  }
+
+  // Insert new vote
+  const { error } = await supabase.from("forum_poll_votes").insert({
+    poll_id: pollId,
+    option_id: optionId,
+    user_id: userId,
+  });
+
+  if (error) {
+    // If error is due to unique constraint, user has already voted for this option
+    if (error.code === "23505") {
+      // Unique violation
+      // If already voted, remove the vote (toggle behavior)
+      await supabase
+        .from("forum_poll_votes")
+        .delete()
+        .eq("poll_id", pollId)
+        .eq("option_id", optionId)
+        .eq("user_id", userId);
+      return;
+    }
+    throw error;
+  }
 }
 
 // Create a reply notification

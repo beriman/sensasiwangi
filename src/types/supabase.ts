@@ -66,6 +66,148 @@ export type Database = {
         }
         Relationships: []
       }
+      forum_follows: {
+        Row: {
+          created_at: string | null
+          email_notifications: boolean | null
+          id: string
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email_notifications?: boolean | null
+          id?: string
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email_notifications?: boolean | null
+          id?: string
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_follows_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "forum_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forum_poll_options: {
+        Row: {
+          created_at: string | null
+          id: string
+          poll_id: string
+          text: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          poll_id: string
+          text: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          poll_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_poll_options_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "forum_polls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forum_poll_votes: {
+        Row: {
+          created_at: string | null
+          id: string
+          option_id: string
+          poll_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          option_id: string
+          poll_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          option_id?: string
+          poll_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_poll_votes_option_id_fkey"
+            columns: ["option_id"]
+            isOneToOne: false
+            referencedRelation: "forum_poll_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forum_poll_votes_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "forum_polls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forum_poll_votes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forum_polls: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          is_multiple_choice: boolean | null
+          question: string
+          thread_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_multiple_choice?: boolean | null
+          question: string
+          thread_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_multiple_choice?: boolean | null
+          question?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_polls_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "forum_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_replies: {
         Row: {
           content: string
@@ -170,6 +312,7 @@ export type Database = {
           category_id: string
           content: string
           created_at: string | null
+          has_poll: boolean | null
           id: string
           title: string
           updated_at: string | null
@@ -179,6 +322,7 @@ export type Database = {
           category_id: string
           content: string
           created_at?: string | null
+          has_poll?: boolean | null
           id?: string
           title: string
           updated_at?: string | null
@@ -188,6 +332,7 @@ export type Database = {
           category_id?: string
           content?: string
           created_at?: string | null
+          has_poll?: boolean | null
           id?: string
           title?: string
           updated_at?: string | null

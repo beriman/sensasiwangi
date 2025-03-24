@@ -31,6 +31,8 @@ import {
   Eye,
   EyeOff,
   Pin,
+  Mail,
+  MailX,
 } from "lucide-react";
 import { useAuth } from "../../../supabase/auth";
 import { hasPrivilege } from "@/lib/reputation";
@@ -44,6 +46,7 @@ import {
   deleteThread,
   pinThread,
   unpinThread,
+  toggleThreadEmailNotifications,
 } from "@/lib/forum";
 import { supabase } from "../../../supabase/supabase";
 
@@ -53,6 +56,7 @@ interface ThreadActionsProps {
   isBookmarked?: boolean;
   isFollowed?: boolean;
   isPinned?: boolean;
+  emailNotifications?: boolean;
   onActionComplete?: (action: string) => void;
 }
 
@@ -62,6 +66,7 @@ export default function ThreadActions({
   isBookmarked = false,
   isFollowed = false,
   isPinned = false,
+  emailNotifications = false,
   onActionComplete,
 }: ThreadActionsProps) {
   const { user } = useAuth();
@@ -70,6 +75,7 @@ export default function ThreadActions({
 
   const [bookmarked, setBookmarked] = useState(isBookmarked);
   const [followed, setFollowed] = useState(isFollowed);
+  const [emailNotify, setEmailNotify] = useState(emailNotifications);
   const [pinned, setPinned] = useState(isPinned);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -134,12 +140,14 @@ export default function ThreadActions({
           title: "Berhenti Mengikuti",
           description: "Anda tidak lagi mengikuti thread ini.",
         });
+        setEmailNotify(false);
       } else {
-        await followThread(user.id, threadId);
+        await followThread(user.id, threadId, true);
         toast({
           title: "Mengikuti Thread",
           description: "Anda akan menerima notifikasi untuk thread ini.",
         });
+        setEmailNotify(true);
       }
       setFollowed(!followed);
       onActionComplete?.("follow");
@@ -148,6 +156,31 @@ export default function ThreadActions({
       toast({
         title: "Error",
         description: "Gagal mengikuti thread. Silakan coba lagi.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleToggleEmailNotifications = async () => {
+    if (!user || !followed) return;
+
+    try {
+      await toggleThreadEmailNotifications(user.id, threadId, !emailNotify);
+      setEmailNotify(!emailNotify);
+      toast({
+        title: emailNotify
+          ? "Notifikasi Email Dinonaktifkan"
+          : "Notifikasi Email Diaktifkan",
+        description: emailNotify
+          ? "Anda tidak akan menerima email untuk thread ini."
+          : "Anda akan menerima email saat ada balasan baru.",
+      });
+      onActionComplete?.("email_notifications");
+    } catch (error) {
+      console.error("Error toggling email notifications:", error);
+      toast({
+        title: "Error",
+        description: "Gagal mengubah pengaturan notifikasi. Silakan coba lagi.",
         variant: "destructive",
       });
     }
@@ -259,4 +292,184 @@ export default function ThreadActions({
       console.error("Error reporting thread:", error);
       toast({
         title: "Error",
-        description
+        description: "Gagal melaporkan thread. Silakan coba lagi.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!isAuthor && !isAdmin) return;
+
+    setIsSubmitting(true);
+    try {
+      await deleteThread(threadId);
+      toast({
+        title: "Thread Dihapus",
+        description: "Thread telah berhasil dihapus.",
+      });
+      onActionComplete?.("delete");
+      // Navigate back to forum
+      navigate("/forum");
+    } catch (error) {
+      console.error("Error deleting thread:", error);
+      toast({
+        title: "Error",
+        description: "Gagal menghapus thread. Silakan coba lagi.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+      setShowDeleteDialog(false);
+    }
+  };
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon">
+            <MoreVertical className="h-5 w-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem onClick={handleBookmark}>
+            {bookmarked ? (
+              <>
+                <BookmarkCheck className="mr-2 h-4 w-4" />
+                <span>Hapus Bookmark</span>
+              </>
+            ) : (
+              <>
+                <Bookmark className="mr-2 h-4 w-4" />
+                <span>Bookmark Thread</span>
+              </>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleFollow}>
+            {followed ? (
+              <>
+                <EyeOff className="mr-2 h-4 w-4" />
+                <span>Berhenti Mengikuti</span>
+              </>
+            ) : (
+              <>
+                <Eye className="mr-2 h-4 w-4" />
+                <span>Ikuti Thread</span>
+              </>
+            )}
+          </DropdownMenuItem>
+          {followed && (
+            <DropdownMenuItem onClick={handleToggleEmailNotifications}>
+              {emailNotify ? (
+                <>
+                  <MailX className="mr-2 h-4 w-4" />
+                  <span>Nonaktifkan Email</span>
+                </>
+              ) : (
+                <>
+                  <Mail className="mr-2 h-4 w-4" />
+                  <span>Aktifkan Email</span>
+                </>
+              )}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={handleShare}>
+            <LinkIcon className="mr-2 h-4 w-4" />
+            <span>Salin Link</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => setShowReportDialog(true)}
+            className="text-amber-600"
+          >
+            <Flag className="mr-2 h-4 w-4" />
+            <span>Laporkan Thread</span>
+          </DropdownMenuItem>
+          {(isAuthor || isAdmin) && (
+            <>
+              <DropdownMenuSeparator />
+              {isAuthor && (
+                <DropdownMenuItem asChild className="text-blue-600">
+                  <Link to={`/forum/edit/${threadId}`}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    <span>Edit Thread</span>
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onClick={() => setShowDeleteDialog(true)}
+                className="text-red-600"
+              >
+                <Trash className="mr-2 h-4 w-4" />
+                <span>Hapus Thread</span>
+              </DropdownMenuItem>
+            </>
+          )}
+          {isAdmin && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handlePin}>
+                <Pin className="mr-2 h-4 w-4" />
+                <span>{pinned ? "Unpin Thread" : "Pin Thread"}</span>
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Report Dialog */}
+      <AlertDialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Laporkan Thread</AlertDialogTitle>
+            <AlertDialogDescription>
+              Silakan berikan alasan mengapa Anda melaporkan thread ini. Laporan
+              akan ditinjau oleh moderator kami.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            placeholder="Alasan laporan..."
+            value={reportReason}
+            onChange={(e) => setReportReason(e.target.value)}
+            className="min-h-[100px]"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleReport}
+              disabled={isSubmitting || !reportReason.trim()}
+            >
+              {isSubmitting ? "Mengirim..." : "Kirim Laporan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Thread</AlertDialogTitle>
+            <AlertDialogDescription>
+              Apakah Anda yakin ingin menghapus thread ini? Tindakan ini tidak
+              dapat dibatalkan dan semua balasan akan ikut terhapus.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isSubmitting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isSubmitting ? "Menghapus..." : "Hapus Thread"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}

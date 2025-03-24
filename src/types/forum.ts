@@ -12,6 +12,25 @@ export interface ForumTag {
   created_at: string;
 }
 
+export interface ForumPollOption {
+  id: string;
+  poll_id: string;
+  text: string;
+  vote_count: number;
+  created_at: string;
+}
+
+export interface ForumPoll {
+  id: string;
+  thread_id: string;
+  question: string;
+  options: ForumPollOption[];
+  created_at: string;
+  expires_at?: string;
+  is_multiple_choice?: boolean;
+  user_voted?: boolean;
+}
+
 export interface ForumThread {
   id: string;
   title: string;
@@ -38,6 +57,7 @@ export interface ForumThread {
   reply_count?: number;
   is_bookmarked?: boolean;
   is_followed?: boolean;
+  poll?: ForumPoll;
 }
 
 export interface ForumReply {
@@ -81,6 +101,7 @@ export interface ForumFollow {
   user_id: string;
   thread_id: string;
   created_at: string;
+  email_notifications: boolean;
 }
 
 export interface ForumNotification {
