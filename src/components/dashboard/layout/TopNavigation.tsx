@@ -15,11 +15,22 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Home, MessageSquare, Search, Settings, User } from "lucide-react";
+import {
+  Home,
+  MessageSquare,
+  Search,
+  Settings,
+  User,
+  Award,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../../../supabase/auth";
 import NotificationCenter from "@/components/forum/NotificationCenter";
 import UnreadMessagesIndicator from "@/components/messages/UnreadMessagesIndicator";
+import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
+import { supabase } from "../../../../supabase/supabase";
+import { calculateLevelProgress } from "@/lib/reputation";
 
 interface TopNavigationProps {
   onSearch?: (query: string) => void;
@@ -27,6 +38,28 @@ interface TopNavigationProps {
 
 const TopNavigation = ({ onSearch = () => {} }: TopNavigationProps) => {
   const { user, signOut } = useAuth();
+  const [userExp, setUserExp] = useState(0);
+  const [userLevel, setUserLevel] = useState(1);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchUserExp = async () => {
+      const { data } = await supabase
+        .from("users")
+        .select("exp")
+        .eq("id", user.id)
+        .single();
+
+      if (data) {
+        setUserExp(data.exp || 0);
+        const { currentLevel } = calculateLevelProgress(data.exp || 0);
+        setUserLevel(currentLevel.level);
+      }
+    };
+
+    fetchUserExp();
+  }, [user]);
 
   if (!user) return null;
 
@@ -50,6 +83,21 @@ const TopNavigation = ({ onSearch = () => {} }: TopNavigationProps) => {
       </div>
 
       <div className="flex items-center gap-4">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
+                <Award className="h-4 w-4 text-purple-500" />
+                <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
+                  Level {userLevel}
+                </Badge>
+                <span className="text-xs text-gray-600">{userExp} EXP</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Your Reputation</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
         <NotificationCenter />
         <TooltipProvider>
           <Tooltip>

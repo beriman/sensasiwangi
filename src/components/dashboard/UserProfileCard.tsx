@@ -11,6 +11,10 @@ import {
   User,
   Zap,
   Award,
+  Mail,
+  Tag,
+  Edit,
+  Pin,
 } from "lucide-react";
 import { useAuth } from "../../../supabase/auth";
 import { supabase } from "../../../supabase/supabase";
@@ -190,13 +194,13 @@ export default function UserProfileCard() {
               </Button>
             </Link>
 
-            <Link to="/marketplace">
+            <Link to="/messages">
               <Button
                 variant="outline"
-                className="w-full h-16 flex flex-col items-center justify-center gap-1 border-gray-200 hover:border-blue-200 hover:bg-blue-50"
+                className="w-full h-16 flex flex-col items-center justify-center gap-1 border-gray-200 hover:border-purple-200 hover:bg-purple-50"
               >
-                <ShoppingBag className="h-5 w-5 text-blue-500" />
-                <span className="text-xs font-medium">Marketplace</span>
+                <Mail className="h-5 w-5 text-purple-500" />
+                <span className="text-xs font-medium">Messages</span>
               </Button>
             </Link>
 
@@ -209,6 +213,30 @@ export default function UserProfileCard() {
                 <span className="text-xs font-medium">Profile</span>
               </Button>
             </Link>
+          </div>
+
+          <div className="mt-4 w-full">
+            <h4 className="text-xs font-medium text-gray-500 mb-2">
+              Available Features
+            </h4>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="flex items-center text-gray-600">
+                <Tag className="h-3 w-3 mr-1 text-purple-500" />
+                <span>Thread Categories & Tags</span>
+              </div>
+              <div className="flex items-center text-gray-600">
+                <Edit className="h-3 w-3 mr-1 text-purple-500" />
+                <span>Rich Text Editor</span>
+              </div>
+              <div className="flex items-center text-gray-600">
+                <Pin className="h-3 w-3 mr-1 text-purple-500" />
+                <span>Thread Pinning</span>
+              </div>
+              <div className="flex items-center text-gray-600">
+                <Mail className="h-3 w-3 mr-1 text-purple-500" />
+                <span>Private Messaging</span>
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>

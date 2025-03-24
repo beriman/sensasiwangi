@@ -9,12 +9,16 @@ import {
   MessageSquare,
   Lock,
   Unlock,
+  Tag,
+  Pin,
+  Edit,
 } from "lucide-react";
 import { supabase } from "../../../supabase/supabase";
 import { useAuth } from "../../../supabase/auth";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { calculateLevelProgress, getUserPrivileges } from "@/lib/reputation";
 import { REPUTATION_LEVELS } from "@/lib/forum";
+import { Link } from "react-router-dom";
 
 interface UserStats {
   exp: number;
@@ -284,6 +288,40 @@ export default function UserExpCard() {
                 </div>
               </div>
             )}
+
+            <div className="mt-4 pt-2 border-t border-gray-100">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">
+                Forum Features
+              </h4>
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  to="/forum"
+                  className="flex items-center text-xs text-purple-600 hover:text-purple-800"
+                >
+                  <MessageSquare className="h-3 w-3 mr-1" />
+                  <span>Forum Threads</span>
+                </Link>
+                <Link
+                  to="/messages"
+                  className="flex items-center text-xs text-purple-600 hover:text-purple-800"
+                >
+                  <MessageSquare className="h-3 w-3 mr-1" />
+                  <span>Private Messages</span>
+                </Link>
+                <div className="flex items-center text-xs text-purple-600">
+                  <Tag className="h-3 w-3 mr-1" />
+                  <span>Thread Categories & Tags</span>
+                </div>
+                <div className="flex items-center text-xs text-purple-600">
+                  <Edit className="h-3 w-3 mr-1" />
+                  <span>Rich Text Editor</span>
+                </div>
+                <div className="flex items-center text-xs text-purple-600">
+                  <Pin className="h-3 w-3 mr-1" />
+                  <span>Thread Pinning</span>
+                </div>
+              </div>
+            </div>
 
             <div className="text-xs text-gray-500 mt-4 pt-2 border-t border-gray-100">
               <p>EXP diberikan untuk aktivitas forum:</p>
