@@ -19,6 +19,7 @@ import {
 import { ForumNotification } from "@/types/forum";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
+import { supabase } from "../../../supabase/supabase";
 
 export default function NotificationCenter() {
   const [notifications, setNotifications] = useState<ForumNotification[]>([]);
@@ -46,12 +47,33 @@ export default function NotificationCenter() {
   };
 
   useEffect(() => {
+    if (!user) return;
+
     fetchNotifications();
 
-    // Set up polling for new notifications every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
+    // Set up real-time subscription for new notifications
+    const subscription = supabase
+      .channel(`forum_notifications_${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "forum_notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          // Add the new notification to the list
+          const newNotification = payload.new as ForumNotification;
+          setNotifications((prev) => [newNotification, ...prev]);
+          setUnreadCount((prev) => prev + 1);
+        },
+      )
+      .subscribe();
 
-    return () => clearInterval(interval);
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [user]);
 
   // Mark a notification as read

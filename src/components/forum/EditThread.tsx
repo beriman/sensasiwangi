@@ -7,24 +7,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import TagSelector from "./TagSelector";
 import MarkdownPreview from "./MarkdownPreview";
-import { ArrowLeft, Image, Link2, FileText, Eye } from "lucide-react";
-import { createThread, getForumTags, getForumCategories } from "@/lib/forum";
+import { ArrowLeft, Image, Link2, FileText, Tag as TagIcon, Eye } from "lucide-react";
+import { getThread, updateThread, getForumTags, getForumCategories } from "@/lib/forum";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAuth } from "../../../supabase/auth";
 import { useToast } from "@/components/ui/use-toast";
 import { ForumTag, ForumCategory } from "@/types/forum";
 
-export default function NewThread() {
-  const { categoryId } = useParams<{ categoryId: string }>();
+export default function EditThread() {
+  const { threadId } = useParams<{ threadId: string }>();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [categoryName, setCategoryName] = useState("");
   const [categories, setCategories] = useState<ForumCategory[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(categoryId);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [tags, setTags] = useState<ForumTag[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [originalAuthorId, setOriginalAuthorId] = useState<string>("");
   const [showPreview, setShowPreview] = useState(false);
 
   const { user } = useAuth();
@@ -32,8 +33,31 @@ export default function NewThread() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchThreadData = async () => {
+      if (!threadId || !user) return;
+
       try {
+        setLoading(true);
+        
+        // Fetch thread data
+        const { thread } = await getThread(threadId);
+        
+        // Check if user is the author of the thread
+        if (thread.user_id !== user.id) {
+          toast({
+            title: "Unauthorized",
+            description: "You can only edit your own threads.",
+            variant: "destructive",
+          });
+          navigate(`/forum/thread/${threadId}`);
+          return;
+        }
+        
+        setOriginalAuthorId(thread.user_id);
+        setTitle(thread.title);
+        setContent(thread.content);
+        setSelectedCategory(thread.category_id);
+        
         // Fetch categories and tags
         const [categoriesData, tagsData] = await Promise.all([
           getForumCategories(),
@@ -44,38 +68,37 @@ export default function NewThread() {
         setTags(tagsData);
         
         // Set category name based on ID
-        if (categoryId) {
-          setSelectedCategory(categoryId);
-          const category = categoriesData.find(cat => cat.id === categoryId);
-          if (category) {
-            setCategoryName(category.name);
-          } else {
-            setCategoryName(
-              categoryId.includes("diskusi") ? "Diskusi Perfumer" : "Review Parfum"
-            );
-          }
+        const category = categoriesData.find(cat => cat.id === thread.category_id);
+        if (category) {
+          setCategoryName(category.name);
+        }
+        
+        // Get thread tags if any
+        if (thread.tags && thread.tags.length > 0) {
+          setSelectedTags(thread.tags.map(tag => tag.id));
         }
       } catch (error) {
-        console.error("Error fetching data:", error);
+        console.error("Error fetching thread data:", error);
         toast({
           title: "Error",
-          description: "Gagal memuat data kategori dan tag.",
+          description: "Failed to load thread data. Please try again.",
           variant: "destructive",
         });
+        navigate(`/forum/thread/${threadId}`);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, [categoryId, toast]);
+    fetchThreadData();
+  }, [threadId, user, toast, navigate]);
 
   useEffect(() => {
     // Redirect if not logged in
     if (!user) {
       toast({
-        title: "Login Diperlukan",
-        description: "Silakan login untuk membuat thread baru.",
+        title: "Login Required",
+        description: "Please login to edit threads.",
         variant: "destructive",
       });
       navigate("/login");
@@ -143,8 +166,8 @@ export default function NewThread() {
 
     if (!title.trim() || !content.trim() || !selectedCategory) {
       toast({
-        title: "Form Tidak Lengkap",
-        description: "Judul, konten, dan kategori thread tidak boleh kosong.",
+        title: "Form Incomplete",
+        description: "Title, content, and category cannot be empty.",
         variant: "destructive",
       });
       return;
@@ -152,7 +175,8 @@ export default function NewThread() {
 
     try {
       setSubmitting(true);
-      const result = await createThread(
+      await updateThread(
+        threadId!,
         title, 
         content, 
         selectedCategory, 
@@ -160,29 +184,18 @@ export default function NewThread() {
         selectedTags.length > 0 ? selectedTags : undefined
       );
 
-      // Check for level up
-      if (result.levelUp) {
-        const { newLevel, oldLevel } = result.levelUp;
-        toast({
-          title: "Level Up!",
-          description: `Anda naik level dari ${oldLevel} ke ${newLevel}!`,
-          variant: "default",
-          className: "bg-gradient-to-r from-purple-600 to-pink-500 text-white",
-        });
-      }
-
       toast({
-        title: "Berhasil",
-        description: "Thread berhasil dibuat.",
+        title: "Success",
+        description: "Thread updated successfully.",
       });
 
-      // Redirect to the new thread
-      navigate(`/forum/thread/${result.thread.id}`);
+      // Redirect to the thread
+      navigate(`/forum/thread/${threadId}`);
     } catch (error) {
-      console.error("Error creating thread:", error);
+      console.error("Error updating thread:", error);
       toast({
         title: "Error",
-        description: "Gagal membuat thread. Silakan coba lagi.",
+        description: "Failed to update thread. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -202,18 +215,18 @@ export default function NewThread() {
     <div className="space-y-6">
       <div className="flex items-center mb-6">
         <Link
-          to={categoryId ? `/forum/category/${categoryId}` : "/forum"}
+          to={`/forum/thread/${threadId}`}
           className="flex items-center text-purple-600 hover:underline"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
-          {categoryId ? `Kembali ke ${categoryName}` : "Kembali ke Forum"}
+          Back to Thread
         </Link>
       </div>
 
       <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl overflow-hidden">
         <CardHeader>
           <CardTitle className="text-xl font-bold text-gray-900">
-            Buat Thread Baru {categoryName && `di ${categoryName}`}
+            Edit Thread {categoryName && `in ${categoryName}`}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -223,11 +236,11 @@ export default function NewThread() {
                 htmlFor="title"
                 className="text-sm font-medium text-gray-700"
               >
-                Judul Thread
+                Thread Title
               </label>
               <Input
                 id="title"
-                placeholder="Masukkan judul thread"
+                placeholder="Enter thread title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 disabled={submitting}
@@ -237,15 +250,15 @@ export default function NewThread() {
             
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">
-                Kategori
+                Category
               </label>
               <Select 
                 value={selectedCategory} 
                 onValueChange={handleCategoryChange}
-                disabled={submitting || !!categoryId}
+                disabled={submitting}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pilih kategori" />
+                  <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((category) => (
@@ -269,7 +282,7 @@ export default function NewThread() {
                   htmlFor="content"
                   className="text-sm font-medium text-gray-700"
                 >
-                  Konten
+                  Content
                 </label>
                 <div className="flex space-x-1">
                   <Button 
@@ -338,14 +351,14 @@ export default function NewThread() {
                 <>
                   <Textarea
                     id="content"
-                    placeholder="Tulis konten thread Anda di sini..."
+                    placeholder="Write your thread content here..."
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                     disabled={submitting}
                     className="min-h-[300px] w-full font-mono"
                   />
                   <div className="text-xs text-gray-500">
-                    Dukungan format: **bold**, *italic*, [link](url), ![image](url), > quote
+                    Formatting support: **bold**, *italic*, [link](url), ![image](url), > quote
                   </div>
                 </>
               ) : (
@@ -358,7 +371,7 @@ export default function NewThread() {
                       size="sm" 
                       onClick={() => setShowPreview(false)}
                     >
-                      Kembali ke Editor
+                      Back to Editor
                     </Button>
                   </div>
                 </>
@@ -374,10 +387,10 @@ export default function NewThread() {
                 {submitting ? (
                   <>
                     <LoadingSpinner className="mr-2" />
-                    Membuat Thread...
+                    Updating Thread...
                   </>
                 ) : (
-                  "Buat Thread"
+                  "Update Thread"
                 )}
               </Button>
             </div>

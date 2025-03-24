@@ -116,6 +116,20 @@ export default function ThreadList() {
                   <div className="line-clamp-2 text-gray-600 mb-4">
                     {thread.content}
                   </div>
+                  {thread.tags && thread.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {thread.tags.map((tag) => (
+                        <Badge
+                          key={tag.id}
+                          variant="outline"
+                          className="text-xs"
+                          style={{ color: tag.color, borderColor: tag.color }}
+                        >
+                          {tag.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex justify-between items-center">
                     <div className="flex items-center space-x-2">
                       <Avatar className="h-8 w-8">

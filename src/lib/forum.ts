@@ -490,6 +490,81 @@ export async function createThread(
   };
 }
 
+// Update an existing thread
+export async function updateThread(
+  threadId: string,
+  title: string,
+  content: string,
+  categoryId: string,
+  userId: string,
+  tagIds?: string[],
+): Promise<ForumThread> {
+  // First check if user is the author of the thread
+  const { data: threadData, error: threadError } = await supabase
+    .from("forum_threads")
+    .select("user_id")
+    .eq("id", threadId)
+    .single();
+
+  if (threadError) throw threadError;
+
+  if (threadData.user_id !== userId) {
+    throw new Error("Unauthorized: You can only edit your own threads");
+  }
+
+  // Update thread
+  const { data, error } = await supabase
+    .from("forum_threads")
+    .update({
+      title,
+      content,
+      category_id: categoryId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", threadId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // Handle tags if provided
+  if (tagIds) {
+    // First remove all existing tags
+    await supabase.from("forum_thread_tags").delete().eq("thread_id", threadId);
+
+    // Then add new tags if any
+    if (tagIds.length > 0) {
+      const threadTags = tagIds.map((tagId) => ({
+        thread_id: threadId,
+        tag_id: tagId,
+      }));
+
+      const { error: tagError } = await supabase
+        .from("forum_thread_tags")
+        .insert(threadTags);
+
+      if (tagError) {
+        console.error("Error updating tags for thread:", tagError);
+        // Continue execution even if tag insertion fails
+      }
+    }
+  }
+
+  // Get user name for mention notifications
+  const { data: userData } = await supabase
+    .from("users")
+    .select("full_name")
+    .eq("id", userId)
+    .single();
+
+  const userName = userData?.full_name || "Seseorang";
+
+  // Check for new mentions in the content
+  await createMentionNotification(content, userId, userName, threadId);
+
+  return data;
+}
+
 // Create a reply to a thread
 export async function createReply(
   content: string,
@@ -524,6 +599,92 @@ export async function createReply(
   await createMentionNotification(content, userId, userName, threadId, data.id);
 
   return data;
+}
+
+// Update a reply
+export async function updateReply(
+  replyId: string,
+  content: string,
+  userId: string,
+): Promise<ForumReply> {
+  // First check if user is the author of the reply
+  const { data: replyData, error: replyError } = await supabase
+    .from("forum_replies")
+    .select("user_id, thread_id")
+    .eq("id", replyId)
+    .single();
+
+  if (replyError) throw replyError;
+
+  if (replyData.user_id !== userId) {
+    throw new Error("Unauthorized: You can only edit your own replies");
+  }
+
+  // Update reply
+  const { data, error } = await supabase
+    .from("forum_replies")
+    .update({
+      content,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", replyId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // Get user name for mention notifications
+  const { data: userData } = await supabase
+    .from("users")
+    .select("full_name")
+    .eq("id", userId)
+    .single();
+
+  const userName = userData?.full_name || "Seseorang";
+
+  // Check for new mentions in the content
+  await createMentionNotification(
+    content,
+    userId,
+    userName,
+    replyData.thread_id,
+    replyId,
+  );
+
+  return data;
+}
+
+// Delete a reply
+export async function deleteReply(
+  replyId: string,
+  userId: string,
+): Promise<void> {
+  // First check if user is the author of the reply
+  const { data: replyData, error: replyError } = await supabase
+    .from("forum_replies")
+    .select("user_id")
+    .eq("id", replyId)
+    .single();
+
+  if (replyError) throw replyError;
+
+  if (replyData.user_id !== userId) {
+    throw new Error("Unauthorized: You can only delete your own replies");
+  }
+
+  // Delete votes on the reply
+  await supabase.from("forum_votes").delete().eq("reply_id", replyId);
+
+  // Delete notifications related to the reply
+  await supabase.from("forum_notifications").delete().eq("reply_id", replyId);
+
+  // Delete the reply
+  const { error } = await supabase
+    .from("forum_replies")
+    .delete()
+    .eq("id", replyId);
+
+  if (error) throw error;
 }
 
 // Vote on a thread or reply

@@ -11,9 +11,24 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Clock } from "lucide-react";
-import { getThread, createReply } from "@/lib/forum";
+import {
+  ArrowLeft,
+  Clock,
+  Edit,
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown,
+} from "lucide-react";
+import {
+  getThread,
+  createReply,
+  updateReply,
+  deleteReply,
+  vote,
+  getUserVote,
+} from "@/lib/forum";
 import ThreadVote from "./ThreadVote";
+import ReplyActions from "./ReplyActions";
 import { ForumThread, ForumReply, VoteType } from "@/types/forum";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAuth } from "../../../supabase/auth";
@@ -35,6 +50,9 @@ export default function ThreadDetail() {
   const [userReplyVotes, setUserReplyVotes] = useState<
     Record<string, VoteType>
   >({});
+  const [editingReplyId, setEditingReplyId] = useState<string | null>(null);
+  const [editReplyContent, setEditReplyContent] = useState("");
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -128,6 +146,93 @@ export default function ThreadDetail() {
       });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleEditReply = (reply: ForumReply) => {
+    setEditingReplyId(reply.id);
+    setEditReplyContent(reply.content);
+  };
+
+  const handleUpdateReply = async (replyId: string) => {
+    if (!user) {
+      toast({
+        title: "Login Diperlukan",
+        description: "Silakan login untuk mengedit balasan.",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
+    if (!editReplyContent.trim()) {
+      toast({
+        title: "Konten Kosong",
+        description: "Balasan tidak boleh kosong.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsSubmittingEdit(true);
+      await updateReply(replyId, editReplyContent, user.id);
+
+      // Refresh thread data
+      const data = await getThread(threadId!);
+      setThread(data.thread);
+      setReplies(data.replies);
+
+      // Clear edit state
+      setEditingReplyId(null);
+      setEditReplyContent("");
+
+      toast({
+        title: "Berhasil",
+        description: "Balasan berhasil diperbarui.",
+      });
+    } catch (error) {
+      console.error("Error updating reply:", error);
+      toast({
+        title: "Error",
+        description: "Gagal memperbarui balasan. Silakan coba lagi.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  };
+
+  const handleDeleteReply = async (replyId: string) => {
+    if (!user) {
+      toast({
+        title: "Login Diperlukan",
+        description: "Silakan login untuk menghapus balasan.",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
+    try {
+      await deleteReply(replyId, user.id);
+
+      // Refresh thread data
+      const data = await getThread(threadId!);
+      setThread(data.thread);
+      setReplies(data.replies);
+
+      toast({
+        title: "Berhasil",
+        description: "Balasan berhasil dihapus.",
+      });
+    } catch (error) {
+      console.error("Error deleting reply:", error);
+      toast({
+        title: "Error",
+        description: "Gagal menghapus balasan. Silakan coba lagi.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -261,6 +366,17 @@ export default function ThreadDetail() {
                   addSuffix: true,
                   locale: id,
                 })}
+                {thread.updated_at &&
+                  thread.updated_at !== thread.created_at && (
+                    <span className="ml-1 text-xs italic">
+                      (edited{" "}
+                      {formatDistanceToNow(new Date(thread.updated_at), {
+                        addSuffix: true,
+                        locale: id,
+                      })}
+                      )
+                    </span>
+                  )}
               </span>
             </div>
           </div>
@@ -293,12 +409,27 @@ export default function ThreadDetail() {
           </div>
         </CardContent>
         <CardFooter className="border-t border-gray-100 pt-4 flex justify-between">
-          <ThreadVote
-            threadId={thread.id}
-            initialVotes={threadVotes}
-            onVoteComplete={handleThreadVoteComplete}
-          />
+          <div className="flex items-center space-x-2">
+            <ThreadVote
+              threadId={thread.id}
+              initialVotes={threadVotes}
+              onVoteComplete={handleThreadVoteComplete}
+            />
+            {user && user.id === thread.user_id && (
+              <Link to={`/forum/edit-thread/${thread.id}`}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center space-x-1"
+                >
+                  <Edit className="h-4 w-4" />
+                  <span>Edit</span>
+                </Button>
+              </Link>
+            )}
+          </div>
           <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
+            <MessageSquare className="h-3 w-3 mr-1" />
             {replies.length} Balasan
           </Badge>
         </CardFooter>
@@ -349,31 +480,65 @@ export default function ThreadDetail() {
                         addSuffix: true,
                         locale: id,
                       })}
+                      {reply.updated_at &&
+                        reply.updated_at !== reply.created_at && (
+                          <span className="ml-1 text-xs italic">
+                            (edited{" "}
+                            {formatDistanceToNow(new Date(reply.updated_at), {
+                              addSuffix: true,
+                              locale: id,
+                            })}
+                            )
+                          </span>
+                        )}
                     </div>
                   </div>
-                  <div className="prose max-w-none mb-4 whitespace-pre-line">
-                    {reply.content}
-                  </div>
-                  <div className="flex justify-end space-x-3">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`flex items-center ${userReplyVotes[reply.id] === "cendol" ? "text-green-600 bg-green-50" : "text-gray-600"}`}
-                      onClick={() => handleReplyVote("cendol", reply.id)}
-                    >
-                      <ThumbsUp className="h-4 w-4 mr-1" />
-                      Cendol ({reply.vote_count?.cendol || 0})
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`flex items-center ${userReplyVotes[reply.id] === "bata" ? "text-red-600 bg-red-50" : "text-gray-600"}`}
-                      onClick={() => handleReplyVote("bata", reply.id)}
-                    >
-                      <ThumbsDown className="h-4 w-4 mr-1" />
-                      Bata ({reply.vote_count?.bata || 0})
-                    </Button>
-                  </div>
+
+                  {editingReplyId === reply.id ? (
+                    <div className="mb-4">
+                      <Textarea
+                        value={editReplyContent}
+                        onChange={(e) => setEditReplyContent(e.target.value)}
+                        className="min-h-[120px] mb-2"
+                        disabled={isSubmittingEdit}
+                      />
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingReplyId(null)}
+                          disabled={isSubmittingEdit}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleUpdateReply(reply.id)}
+                          disabled={isSubmittingEdit}
+                          className="bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:opacity-90"
+                        >
+                          {isSubmittingEdit ? "Saving..." : "Save Changes"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="prose max-w-none mb-4 whitespace-pre-line">
+                      {reply.content}
+                    </div>
+                  )}
+
+                  {user && (
+                    <ReplyActions
+                      replyId={reply.id}
+                      isAuthor={user.id === reply.user_id}
+                      userVote={userReplyVotes[reply.id] || null}
+                      voteCount={reply.vote_count || { cendol: 0, bata: 0 }}
+                      onVote={(voteType) => handleReplyVote(voteType, reply.id)}
+                      onEdit={() => handleEditReply(reply)}
+                      onDelete={() => handleDeleteReply(reply.id)}
+                    />
+                  )}
                 </CardContent>
               </Card>
             ))}

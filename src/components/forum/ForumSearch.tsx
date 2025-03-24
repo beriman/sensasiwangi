@@ -231,11 +231,15 @@ export default function ForumSearch({
                 {tags.map((tag) => (
                   <Badge
                     key={tag.id}
-                    className={`cursor-pointer ${
-                      selectedTags.includes(tag.id)
-                        ? `bg-${tag.color}-500 hover:bg-${tag.color}-600 text-white`
-                        : `bg-${tag.color}-100 text-${tag.color}-800 hover:bg-${tag.color}-200`
-                    }`}
+                    className="cursor-pointer"
+                    style={{
+                      backgroundColor: selectedTags.includes(tag.id)
+                        ? tag.color
+                        : `${tag.color}20`,
+                      color: selectedTags.includes(tag.id)
+                        ? "white"
+                        : tag.color,
+                    }}
                     onClick={() => toggleTag(tag.id)}
                   >
                     {tag.name}

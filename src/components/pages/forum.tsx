@@ -5,6 +5,7 @@ import ForumCategories from "../forum/ForumCategories";
 import ThreadList from "../forum/ThreadList";
 import ThreadDetail from "../forum/ThreadDetail";
 import NewThread from "../forum/NewThread";
+import EditThread from "../forum/EditThread";
 
 export default function Forum() {
   return (
@@ -41,6 +42,14 @@ export default function Forum() {
         element={
           <ForumLayout>
             <NewThread />
+          </ForumLayout>
+        }
+      />
+      <Route
+        path="/edit-thread/:threadId"
+        element={
+          <ForumLayout>
+            <EditThread />
           </ForumLayout>
         }
       />

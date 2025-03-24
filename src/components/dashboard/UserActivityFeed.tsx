@@ -7,6 +7,12 @@ import { MessageSquare, ThumbsUp, Award, Clock } from "lucide-react";
 import { useAuth } from "../../../supabase/auth";
 import { supabase } from "../../../supabase/supabase";
 import { formatDistanceToNow } from "date-fns";
+import {
+  ForumThread,
+  ForumReply,
+  ForumVote,
+  ForumUserBadge,
+} from "@/types/forum";
 
 interface ActivityItem {
   id: string;
@@ -25,63 +31,154 @@ export default function UserActivityFeed() {
   useEffect(() => {
     if (!user) return;
 
-    // This is a mock function that would normally fetch from the database
     const fetchUserActivity = async () => {
       try {
         setLoading(true);
+        const allActivities: ActivityItem[] = [];
 
-        // In a real implementation, we would fetch from the database
-        // For now, we'll use mock data
-        const mockActivities: ActivityItem[] = [
-          {
-            id: "1",
-            type: "thread",
+        // Fetch user's threads
+        const { data: threads, error: threadsError } = await supabase
+          .from("forum_threads")
+          .select("id, title, content, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (threadsError) throw threadsError;
+
+        if (threads) {
+          const threadActivities = threads.map((thread: any) => ({
+            id: `thread-${thread.id}`,
+            type: "thread" as const,
             title: "Created a new thread",
-            description: "How to create your first perfume blend",
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-            link: "/forum/thread/123",
-          },
-          {
-            id: "2",
-            type: "reply",
-            title: "Replied to a thread",
-            description: "Best jasmine notes for summer fragrances",
-            created_at: new Date(
-              Date.now() - 1000 * 60 * 60 * 24,
-            ).toISOString(), // 1 day ago
-            link: "/forum/thread/456",
-          },
-          {
-            id: "3",
-            type: "vote",
-            title: "Received an upvote",
-            description: "Your thread about citrus notes was upvoted",
-            created_at: new Date(
-              Date.now() - 1000 * 60 * 60 * 24 * 2,
-            ).toISOString(), // 2 days ago
-            link: "/forum/thread/789",
-          },
-          {
-            id: "4",
-            type: "badge",
-            title: "Earned a new badge",
-            description: "Thread Starter: Create your first 5 threads",
-            created_at: new Date(
-              Date.now() - 1000 * 60 * 60 * 24 * 3,
-            ).toISOString(), // 3 days ago
-          },
-          {
-            id: "5",
-            type: "level_up",
-            title: "Leveled up to Level 2",
-            description: "Keep contributing to earn more experience!",
-            created_at: new Date(
-              Date.now() - 1000 * 60 * 60 * 24 * 5,
-            ).toISOString(), // 5 days ago
-          },
-        ];
+            description: thread.title,
+            created_at: thread.created_at,
+            link: `/forum/thread/${thread.id}`,
+          }));
+          allActivities.push(...threadActivities);
+        }
 
-        setActivities(mockActivities);
+        // Fetch user's replies
+        const { data: replies, error: repliesError } = await supabase
+          .from("forum_replies")
+          .select("id, content, thread_id, created_at, forum_threads(title)")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (repliesError) throw repliesError;
+
+        if (replies) {
+          const replyActivities = replies.map((reply: any) => ({
+            id: `reply-${reply.id}`,
+            type: "reply" as const,
+            title: "Replied to a thread",
+            description: reply.forum_threads?.title || "Thread",
+            created_at: reply.created_at,
+            link: `/forum/thread/${reply.thread_id}#reply-${reply.id}`,
+          }));
+          allActivities.push(...replyActivities);
+        }
+
+        // Fetch votes received by the user
+        const { data: votes, error: votesError } = await supabase
+          .from("forum_votes")
+          .select(
+            `
+            id, 
+            vote_type, 
+            created_at, 
+            thread_id, 
+            reply_id, 
+            forum_threads(title), 
+            forum_replies(content, thread_id)
+          `,
+          )
+          .or(
+            `thread_id.eq.any(${JSON.stringify(threads?.map((t: any) => t.id) || [])}),reply_id.eq.any(${JSON.stringify(replies?.map((r: any) => r.id) || [])})`,
+          )
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (votesError) throw votesError;
+
+        if (votes) {
+          const voteActivities = votes.map((vote: any) => {
+            const isUpvote = vote.vote_type === "cendol";
+            const targetType = vote.thread_id ? "thread" : "reply";
+            const targetId =
+              vote.thread_id ||
+              (vote.reply_id ? vote.forum_replies?.thread_id : null);
+            const targetTitle = vote.thread_id
+              ? vote.forum_threads?.title
+              : "a reply";
+
+            return {
+              id: `vote-${vote.id}`,
+              type: "vote" as const,
+              title: `Received ${isUpvote ? "an upvote" : "a downvote"}`,
+              description: `Your ${targetType} about ${targetTitle} was ${isUpvote ? "upvoted" : "downvoted"}`,
+              created_at: vote.created_at,
+              link: targetId ? `/forum/thread/${targetId}` : undefined,
+            };
+          });
+          allActivities.push(...voteActivities);
+        }
+
+        // Fetch user's badges
+        const { data: badges, error: badgesError } = await supabase
+          .from("forum_user_badges")
+          .select("id, awarded_at, badge:badge_id(name, description)")
+          .eq("user_id", user.id)
+          .order("awarded_at", { ascending: false })
+          .limit(5);
+
+        if (badgesError) throw badgesError;
+
+        if (badges) {
+          const badgeActivities = badges.map((userBadge: any) => ({
+            id: `badge-${userBadge.id}`,
+            type: "badge" as const,
+            title: "Earned a new badge",
+            description: userBadge.badge?.name || "New achievement",
+            created_at: userBadge.awarded_at,
+          }));
+          allActivities.push(...badgeActivities);
+        }
+
+        // Fetch user's level ups (from user_exp_history table if it exists)
+        try {
+          const { data: levelUps, error: levelUpsError } = await supabase
+            .from("user_exp_history")
+            .select("id, created_at, new_level")
+            .eq("user_id", user.id)
+            .eq("type", "level_up")
+            .order("created_at", { ascending: false })
+            .limit(3);
+
+          if (!levelUpsError && levelUps) {
+            const levelUpActivities = levelUps.map((levelUp: any) => ({
+              id: `level-${levelUp.id}`,
+              type: "level_up" as const,
+              title: `Leveled up to Level ${levelUp.new_level}`,
+              description: "Keep contributing to earn more experience!",
+              created_at: levelUp.created_at,
+            }));
+            allActivities.push(...levelUpActivities);
+          }
+        } catch (err) {
+          // Level up table might not exist yet, just continue
+          console.log("Level up history not available:", err);
+        }
+
+        // Sort all activities by date (newest first)
+        allActivities.sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+
+        // Take the most recent 10 activities
+        setActivities(allActivities.slice(0, 10));
       } catch (error) {
         console.error("Error fetching user activity:", error);
       } finally {
@@ -95,8 +192,9 @@ export default function UserActivityFeed() {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case "thread":
-      case "reply":
         return <MessageSquare className="h-4 w-4 text-blue-500" />;
+      case "reply":
+        return <MessageSquare className="h-4 w-4 text-indigo-500" />;
       case "vote":
         return <ThumbsUp className="h-4 w-4 text-green-500" />;
       case "badge":
