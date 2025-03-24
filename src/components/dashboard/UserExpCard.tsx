@@ -2,10 +2,19 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Award, ThumbsUp, ThumbsDown, MessageSquare } from "lucide-react";
+import {
+  Award,
+  ThumbsUp,
+  ThumbsDown,
+  MessageSquare,
+  Lock,
+  Unlock,
+} from "lucide-react";
 import { supabase } from "../../../supabase/supabase";
 import { useAuth } from "../../../supabase/auth";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { calculateLevelProgress, getUserPrivileges } from "@/lib/reputation";
+import { REPUTATION_LEVELS } from "@/lib/forum";
 
 interface UserStats {
   exp: number;
@@ -111,14 +120,9 @@ export default function UserExpCard() {
     fetchUserStats();
   }, [user]);
 
-  // Calculate level based on EXP
-  const calculateLevel = (exp: number) => {
-    return Math.floor(Math.sqrt(exp / 10)) + 1;
-  };
-
-  // Calculate EXP needed for next level
-  const calculateNextLevelExp = (level: number) => {
-    return Math.pow(level, 2) * 10;
+  // Get reputation level info based on EXP
+  const getReputationInfo = (exp: number) => {
+    return calculateLevelProgress(exp);
   };
 
   if (loading) {
@@ -138,12 +142,14 @@ export default function UserExpCard() {
 
   if (!stats) return null;
 
-  const level = calculateLevel(stats.exp);
-  const nextLevelExp = calculateNextLevelExp(level);
-  const prevLevelExp = calculateNextLevelExp(level - 1);
-  const expInCurrentLevel = stats.exp - prevLevelExp;
-  const expNeededForNextLevel = nextLevelExp - prevLevelExp;
-  const progressPercentage = (expInCurrentLevel / expNeededForNextLevel) * 100;
+  const {
+    progress: progressPercentage,
+    currentLevel,
+    nextLevel,
+    expToNextLevel,
+  } = getReputationInfo(stats.exp);
+  const userPrivileges = getUserPrivileges(stats.exp);
+  const nextLevelPrivileges = nextLevel ? nextLevel.privileges : [];
 
   return (
     <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
@@ -156,18 +162,25 @@ export default function UserExpCard() {
       <CardContent>
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
-              Level {level}
-            </Badge>
+            <div className="flex flex-col gap-1">
+              <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
+                Level {currentLevel.level}: {currentLevel.title}
+              </Badge>
+              <span className="text-xs text-gray-500">
+                {currentLevel.description}
+              </span>
+            </div>
             <span className="text-sm font-medium text-gray-700">
               {stats.exp} EXP Total
             </span>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 mt-3">
             <div className="flex justify-between text-xs font-medium">
               <span className="text-gray-500">
-                Progress to Level {level + 1}
+                {nextLevel
+                  ? `Progress to Level ${nextLevel.level}: ${nextLevel.title}`
+                  : "Max Level Reached!"}
               </span>
               <span className="text-gray-900">
                 {Math.round(progressPercentage)}%
@@ -183,7 +196,9 @@ export default function UserExpCard() {
               }
             />
             <div className="text-xs text-gray-500 text-right">
-              {expInCurrentLevel} / {expNeededForNextLevel} EXP
+              {nextLevel
+                ? `${expToNextLevel} EXP needed for next level`
+                : "Maximum level achieved"}
             </div>
           </div>
 
@@ -233,13 +248,51 @@ export default function UserExpCard() {
             </div>
           </div>
 
-          <div className="text-xs text-gray-500 mt-4">
-            <p>EXP diberikan untuk aktivitas forum:</p>
-            <ul className="list-disc list-inside mt-1 space-y-1">
-              <li>+1 EXP untuk membuat thread baru</li>
-              <li>+5 EXP untuk setiap Cendol yang diterima</li>
-              <li>-3 EXP untuk setiap Bata yang diterima</li>
-            </ul>
+          <div className="mt-4 space-y-3">
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">
+                Your Privileges
+              </h4>
+              <div className="space-y-1">
+                {userPrivileges.map((privilege, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center text-xs text-gray-700"
+                  >
+                    <Unlock className="h-3 w-3 text-green-500 mr-1" />
+                    <span>{privilege}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {nextLevel && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">
+                  Next Level Privileges
+                </h4>
+                <div className="space-y-1">
+                  {nextLevelPrivileges.map((privilege, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center text-xs text-gray-500"
+                    >
+                      <Lock className="h-3 w-3 text-gray-400 mr-1" />
+                      <span>{privilege}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="text-xs text-gray-500 mt-4 pt-2 border-t border-gray-100">
+              <p>EXP diberikan untuk aktivitas forum:</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>+1 EXP untuk membuat thread baru</li>
+                <li>+5 EXP untuk setiap Cendol yang diterima</li>
+                <li>-3 EXP untuk setiap Bata yang diterima</li>
+              </ul>
+            </div>
           </div>
         </div>
       </CardContent>

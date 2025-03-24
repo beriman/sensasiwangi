@@ -33,6 +33,7 @@ import {
   Pin,
 } from "lucide-react";
 import { useAuth } from "../../../supabase/auth";
+import { hasPrivilege } from "@/lib/reputation";
 import { useToast } from "@/components/ui/use-toast";
 import {
   bookmarkThread,
@@ -200,6 +201,19 @@ export default function ThreadActions({
       return;
     }
 
+    // For high-priority flagging, check if user has the privilege (Level 5+)
+    const { data: userData } = await supabase
+      .from("users")
+      .select("exp_points")
+      .eq("id", user.id)
+      .single();
+
+    const userExp = userData?.exp_points || 0;
+    const hasPriorityFlag = hasPrivilege(
+      userExp,
+      "Flag inappropriate content for immediate review",
+    );
+
     if (!reportReason.trim()) {
       toast({
         title: "Alasan Diperlukan",
@@ -211,13 +225,33 @@ export default function ThreadActions({
 
     setIsSubmitting(true);
     try {
-      await reportContent(user.id, threadId, undefined, reportReason);
+      // Get user exp to check for priority flagging privilege
+      const { data: userData } = await supabase
+        .from("users")
+        .select("exp_points")
+        .eq("id", user.id)
+        .single();
+
+      const userExp = userData?.exp_points || 0;
+      const hasPriorityFlag = hasPrivilege(
+        userExp,
+        "Flag inappropriate content for immediate review",
+      );
+
+      await reportContent(
+        user.id,
+        threadId,
+        undefined,
+        reportReason,
+        hasPriorityFlag,
+      );
       setShowReportDialog(false);
       setReportReason("");
       toast({
         title: "Laporan Terkirim",
-        description:
-          "Terima kasih atas laporan Anda. Tim kami akan meninjau konten ini.",
+        description: hasPriorityFlag
+          ? "Laporan Anda telah dikirim dengan prioritas tinggi dan akan segera ditinjau."
+          : "Terima kasih atas laporan Anda. Tim kami akan meninjau konten ini.",
       });
       onActionComplete?.("report");
     } catch (error) {

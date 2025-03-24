@@ -18,14 +18,69 @@ const EXP_CREATE_THREAD = 1;
 const EXP_RECEIVE_CENDOL = 5;
 const EXP_RECEIVE_BATA = -3;
 
-// Level thresholds
-const LEVEL_THRESHOLDS = [
-  { level: 1, exp: 0, title: "Newbie" },
-  { level: 2, exp: 100, title: "Apprentice" },
-  { level: 3, exp: 300, title: "Enthusiast" },
-  { level: 4, exp: 600, title: "Expert" },
-  { level: 5, exp: 1000, title: "Master" },
-  { level: 6, exp: 1500, title: "Grandmaster" },
+// Reputation levels with privileges
+export const REPUTATION_LEVELS = [
+  {
+    level: 1,
+    exp: 0,
+    title: "Newbie",
+    description: "Just starting your perfume journey",
+    privileges: ["Create threads and replies", "Vote on threads and replies"],
+  },
+  {
+    level: 2,
+    exp: 100,
+    title: "Apprentice",
+    description: "Learning the basics of perfumery",
+    privileges: ["Create custom tags", "Upload images in posts"],
+  },
+  {
+    level: 3,
+    exp: 300,
+    title: "Enthusiast",
+    description: "Developing your perfume palette",
+    privileges: [
+      "Edit posts up to 24 hours after posting",
+      "Create polls in threads",
+    ],
+  },
+  {
+    level: 4,
+    exp: 600,
+    title: "Expert",
+    description: "Recognized for your perfume knowledge",
+    privileges: [
+      "Suggest thread edits to moderators",
+      "Highlight your best reviews",
+    ],
+  },
+  {
+    level: 5,
+    exp: 1000,
+    title: "Master",
+    description: "A respected voice in the community",
+    privileges: [
+      "Flag inappropriate content for immediate review",
+      "Create featured content",
+    ],
+  },
+  {
+    level: 6,
+    exp: 1500,
+    title: "Grandmaster",
+    description: "Elite perfume connoisseur",
+    privileges: ["Help moderate forum content", "Create community challenges"],
+  },
+  {
+    level: 7,
+    exp: 2500,
+    title: "Perfume Sage",
+    description: "Legendary status in the community",
+    privileges: [
+      "Posts appear highlighted in threads",
+      "Create special community events",
+    ],
+  },
 ];
 
 // Get all forum categories
@@ -43,11 +98,43 @@ export async function getForumCategories(): Promise<ForumCategory[]> {
 export async function getForumTags(): Promise<ForumTag[]> {
   const { data, error } = await supabase
     .from("forum_tags")
-    .select("*")
+    .select(
+      "*, usage_count:forum_thread_tags!forum_thread_tags_tag_id_fkey(count)",
+    )
     .order("name", { ascending: true });
 
   if (error) throw error;
-  return data || [];
+
+  // Process the usage count from the aggregation
+  return (data || []).map((tag) => ({
+    ...tag,
+    usage_count: tag.usage_count?.length || 0,
+  }));
+}
+
+// Create a custom tag
+export async function createCustomTag(tagData: {
+  name: string;
+  color: string;
+  description?: string;
+  category?: string;
+  user_id: string;
+}): Promise<ForumTag> {
+  const { data, error } = await supabase
+    .from("forum_tags")
+    .insert({
+      name: tagData.name,
+      color: tagData.color,
+      description: tagData.description || null,
+      category: tagData.category || "Custom",
+      user_id: tagData.user_id,
+      is_custom: true,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { ...data, usage_count: 0 };
 }
 
 // Search threads with filters
@@ -990,6 +1077,7 @@ export async function reportContent(
   threadId?: string,
   replyId?: string,
   reason: string = "Inappropriate content",
+  isPriority: boolean = false,
 ): Promise<void> {
   const { error } = await supabase.from("forum_reports").insert({
     reporter_id: reporterId,
@@ -997,6 +1085,7 @@ export async function reportContent(
     reply_id: replyId || null,
     reason: reason,
     status: "pending",
+    priority: isPriority ? "high" : "normal",
   });
 
   if (error) throw error;

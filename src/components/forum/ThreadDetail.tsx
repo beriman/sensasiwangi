@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import TagBadge from "./TagBadge";
 import {
   ArrowLeft,
   Clock,
@@ -35,6 +36,8 @@ import { useAuth } from "../../../supabase/auth";
 import { useToast } from "@/components/ui/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { id } from "date-fns/locale";
+import RichTextContent from "./RichTextContent";
+import RichTextEditor from "./RichTextEditor";
 
 export default function ThreadDetail() {
   const { threadId } = useParams<{ threadId: string }>();
@@ -43,16 +46,12 @@ export default function ThreadDetail() {
   const [loading, setLoading] = useState(true);
   const [replyContent, setReplyContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [threadVotes, setThreadVotes] = useState<{
-    cendol: number;
-    bata: number;
-  }>({ cendol: 0, bata: 0 });
-  const [userReplyVotes, setUserReplyVotes] = useState<
-    Record<string, VoteType>
-  >({});
+  const [userVote, setUserVote] = useState<VoteType | null>(null);
   const [editingReplyId, setEditingReplyId] = useState<string | null>(null);
-  const [editReplyContent, setEditReplyContent] = useState("");
-  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [replyVotes, setReplyVotes] = useState<Record<string, VoteType | null>>(
+    {},
+  );
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -64,48 +63,132 @@ export default function ThreadDetail() {
 
       try {
         setLoading(true);
-        const data = await getThread(threadId);
-        setThread(data.thread);
-        setReplies(data.replies);
+        const { thread: threadData, replies: repliesData } =
+          await getThread(threadId);
+        setThread(threadData);
+        setReplies(repliesData);
 
-        // Set thread votes
-        if (data.thread.vote_count) {
-          setThreadVotes(data.thread.vote_count);
-        }
-
-        // Get votes for each reply if user is logged in
+        // Get user's vote on thread if logged in
         if (user) {
-          const replyVotes: Record<string, VoteType> = {};
-          for (const reply of data.replies) {
+          const vote = await getUserVote(user.id, threadId);
+          setUserVote(vote);
+
+          // Get user's votes on replies
+          const replyVotesObj: Record<string, VoteType | null> = {};
+          for (const reply of repliesData) {
             const replyVote = await getUserVote(user.id, undefined, reply.id);
-            if (replyVote) {
-              replyVotes[reply.id] = replyVote;
-            }
+            replyVotesObj[reply.id] = replyVote;
           }
-          setUserReplyVotes(replyVotes);
+          setReplyVotes(replyVotesObj);
         }
       } catch (error) {
         console.error("Error fetching thread:", error);
         toast({
           title: "Error",
-          description: "Gagal memuat thread. Silakan coba lagi.",
+          description: "Failed to load thread. Please try again.",
           variant: "destructive",
         });
+        navigate("/forum");
       } finally {
         setLoading(false);
       }
     };
 
     fetchThread();
-  }, [threadId, user, toast]);
+  }, [threadId, user, toast, navigate]);
 
-  const handleReplySubmit = async (e: React.FormEvent) => {
+  const handleVote = async (voteType: VoteType) => {
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to vote on threads.",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
+    if (!thread) return;
+
+    try {
+      const result = await vote(user.id, voteType, threadId);
+
+      // Refresh thread data to get updated vote counts
+      const { thread: updatedThread } = await getThread(threadId!);
+      setThread(updatedThread);
+
+      // Update user's vote state
+      const newVote = await getUserVote(user.id, threadId);
+      setUserVote(newVote);
+
+      // Check for level up notification
+      if (result.levelUp && result.levelUp.userId === thread.user_id) {
+        toast({
+          title: "Author Leveled Up!",
+          description: `Thread author has leveled up from ${result.levelUp.oldLevel} to ${result.levelUp.newLevel}!`,
+          variant: "default",
+          className: "bg-gradient-to-r from-purple-600 to-pink-500 text-white",
+        });
+      }
+    } catch (error) {
+      console.error("Error voting on thread:", error);
+      toast({
+        title: "Error",
+        description: "Failed to register vote. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleReplyVote = async (replyId: string, voteType: VoteType) => {
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to vote on replies.",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
+    try {
+      const result = await vote(user.id, voteType, undefined, replyId);
+
+      // Refresh replies data to get updated vote counts
+      const { replies: updatedReplies } = await getThread(threadId!);
+      setReplies(updatedReplies);
+
+      // Update user's vote state for this reply
+      const newVote = await getUserVote(user.id, undefined, replyId);
+      setReplyVotes((prev) => ({ ...prev, [replyId]: newVote }));
+
+      // Check for level up notification
+      const reply = replies.find((r) => r.id === replyId);
+      if (result.levelUp && reply && result.levelUp.userId === reply.user_id) {
+        toast({
+          title: "Author Leveled Up!",
+          description: `Reply author has leveled up from ${result.levelUp.oldLevel} to ${result.levelUp.newLevel}!`,
+          variant: "default",
+          className: "bg-gradient-to-r from-purple-600 to-pink-500 text-white",
+        });
+      }
+    } catch (error) {
+      console.error("Error voting on reply:", error);
+      toast({
+        title: "Error",
+        description: "Failed to register vote. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSubmitReply = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!user) {
       toast({
-        title: "Login Diperlukan",
-        description: "Silakan login untuk membalas thread ini.",
+        title: "Login Required",
+        description: "Please login to reply to threads.",
         variant: "destructive",
       });
       navigate("/login");
@@ -114,8 +197,8 @@ export default function ThreadDetail() {
 
     if (!replyContent.trim()) {
       toast({
-        title: "Konten Kosong",
-        description: "Balasan tidak boleh kosong.",
+        title: "Empty Reply",
+        description: "Reply content cannot be empty.",
         variant: "destructive",
       });
       return;
@@ -124,24 +207,20 @@ export default function ThreadDetail() {
     try {
       setSubmitting(true);
       await createReply(replyContent, threadId!, user.id);
-
-      // Refresh thread data
-      const data = await getThread(threadId!);
-      setThread(data.thread);
-      setReplies(data.replies);
-
-      // Clear form
       setReplyContent("");
-
       toast({
-        title: "Berhasil",
-        description: "Balasan berhasil ditambahkan.",
+        title: "Reply Posted",
+        description: "Your reply has been posted successfully.",
       });
+
+      // Refresh thread data to show new reply
+      const { replies: updatedReplies } = await getThread(threadId!);
+      setReplies(updatedReplies);
     } catch (error) {
-      console.error("Error creating reply:", error);
+      console.error("Error posting reply:", error);
       toast({
         title: "Error",
-        description: "Gagal menambahkan balasan. Silakan coba lagi.",
+        description: "Failed to post reply. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -149,194 +228,93 @@ export default function ThreadDetail() {
     }
   };
 
-  const handleEditReply = (reply: ForumReply) => {
-    setEditingReplyId(reply.id);
-    setEditReplyContent(reply.content);
+  const handleEditReply = (replyId: string, content: string) => {
+    setEditingReplyId(replyId);
+    setEditContent(content);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingReplyId(null);
+    setEditContent("");
   };
 
   const handleUpdateReply = async (replyId: string) => {
-    if (!user) {
+    if (!editContent.trim()) {
       toast({
-        title: "Login Diperlukan",
-        description: "Silakan login untuk mengedit balasan.",
-        variant: "destructive",
-      });
-      navigate("/login");
-      return;
-    }
-
-    if (!editReplyContent.trim()) {
-      toast({
-        title: "Konten Kosong",
-        description: "Balasan tidak boleh kosong.",
+        title: "Empty Reply",
+        description: "Reply content cannot be empty.",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      setIsSubmittingEdit(true);
-      await updateReply(replyId, editReplyContent, user.id);
-
-      // Refresh thread data
-      const data = await getThread(threadId!);
-      setThread(data.thread);
-      setReplies(data.replies);
-
-      // Clear edit state
-      setEditingReplyId(null);
-      setEditReplyContent("");
-
+      setSubmitting(true);
+      await updateReply(replyId, editContent, user!.id);
       toast({
-        title: "Berhasil",
-        description: "Balasan berhasil diperbarui.",
+        title: "Reply Updated",
+        description: "Your reply has been updated successfully.",
       });
+
+      // Refresh thread data to show updated reply
+      const { replies: updatedReplies } = await getThread(threadId!);
+      setReplies(updatedReplies);
+      setEditingReplyId(null);
+      setEditContent("");
     } catch (error) {
       console.error("Error updating reply:", error);
       toast({
         title: "Error",
-        description: "Gagal memperbarui balasan. Silakan coba lagi.",
+        description: "Failed to update reply. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsSubmittingEdit(false);
+      setSubmitting(false);
     }
   };
 
   const handleDeleteReply = async (replyId: string) => {
-    if (!user) {
-      toast({
-        title: "Login Diperlukan",
-        description: "Silakan login untuk menghapus balasan.",
-        variant: "destructive",
-      });
-      navigate("/login");
-      return;
-    }
-
     try {
-      await deleteReply(replyId, user.id);
-
-      // Refresh thread data
-      const data = await getThread(threadId!);
-      setThread(data.thread);
-      setReplies(data.replies);
-
+      await deleteReply(replyId, user!.id);
       toast({
-        title: "Berhasil",
-        description: "Balasan berhasil dihapus.",
+        title: "Reply Deleted",
+        description: "Your reply has been deleted successfully.",
       });
+
+      // Refresh thread data to remove deleted reply
+      const { replies: updatedReplies } = await getThread(threadId!);
+      setReplies(updatedReplies);
     } catch (error) {
       console.error("Error deleting reply:", error);
       toast({
         title: "Error",
-        description: "Gagal menghapus balasan. Silakan coba lagi.",
+        description: "Failed to delete reply. Please try again.",
         variant: "destructive",
       });
     }
-  };
-
-  const handleReplyVote = async (voteType: VoteType, targetId: string) => {
-    if (!user) {
-      toast({
-        title: "Login Diperlukan",
-        description: "Silakan login untuk memberikan vote.",
-        variant: "destructive",
-      });
-      navigate("/login");
-      return;
-    }
-
-    try {
-      const result = await vote(user.id, voteType, undefined, targetId);
-
-      // Update UI optimistically
-      const currentVote = userReplyVotes[targetId];
-      if (currentVote === voteType) {
-        // Remove vote if clicking the same button
-        const newVotes = { ...userReplyVotes };
-        delete newVotes[targetId];
-        setUserReplyVotes(newVotes);
-      } else {
-        // Set or change vote
-        setUserReplyVotes({ ...userReplyVotes, [targetId]: voteType });
-      }
-
-      // Check for level up
-      if (result.levelUp) {
-        const { newLevel, oldLevel, userId } = result.levelUp;
-        // Get user name from thread or replies
-        let userName = "User";
-        if (thread?.user_id === userId && thread?.user?.full_name) {
-          userName = thread.user.full_name;
-        } else {
-          const reply = replies.find((r) => r.user_id === userId);
-          if (reply?.user?.full_name) {
-            userName = reply.user.full_name;
-          }
-        }
-
-        toast({
-          title: "Level Up!",
-          description: `${userName} naik level dari ${oldLevel} ke ${newLevel}!`,
-          variant: "default",
-          className: "bg-gradient-to-r from-purple-600 to-pink-500 text-white",
-        });
-      }
-
-      // Refresh thread data to get updated vote counts
-      const data = await getThread(threadId!);
-      setThread(data.thread);
-      setReplies(data.replies);
-    } catch (error) {
-      console.error("Error voting:", error);
-      toast({
-        title: "Error",
-        description: "Gagal memberikan vote. Silakan coba lagi.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleThreadVoteComplete = (newVotes: {
-    cendol: number;
-    bata: number;
-  }) => {
-    setThreadVotes(newVotes);
-
-    // Refresh thread data to get updated information
-    const refreshThread = async () => {
-      try {
-        const data = await getThread(threadId!);
-        setThread(data.thread);
-        setReplies(data.replies);
-      } catch (error) {
-        console.error("Error refreshing thread:", error);
-      }
-    };
-
-    refreshThread();
   };
 
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <LoadingSpinner text="Memuat thread..." />
+        <LoadingSpinner text="Loading thread..." />
       </div>
     );
   }
 
   if (!thread) {
     return (
-      <Card className="p-6 text-center bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl">
-        <p className="text-gray-500">Thread tidak ditemukan.</p>
-        <Link
-          to="/forum"
-          className="mt-4 inline-block text-purple-600 hover:underline"
-        >
-          Kembali ke Forum
-        </Link>
-      </Card>
+      <div className="text-center py-12">
+        <h2 className="text-xl font-semibold text-gray-800">
+          Thread not found
+        </h2>
+        <p className="text-gray-600 mt-2">
+          The thread you're looking for doesn't exist or has been removed.
+        </p>
+        <Button className="mt-4" asChild>
+          <Link to="/forum">Back to Forum</Link>
+        </Button>
+      </div>
     );
   }
 
@@ -348,13 +326,13 @@ export default function ThreadDetail() {
           className="flex items-center text-purple-600 hover:underline"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
-          Kembali ke Daftar Thread
+          Back to Threads
         </Link>
       </div>
 
-      {/* Thread */}
+      {/* Thread Card */}
       <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl overflow-hidden">
-        <CardHeader>
+        <CardHeader className="pb-2">
           <div className="flex justify-between items-start">
             <CardTitle className="text-xl font-bold text-gray-900">
               {thread.title}
@@ -366,83 +344,67 @@ export default function ThreadDetail() {
                   addSuffix: true,
                   locale: id,
                 })}
-                {thread.updated_at &&
-                  thread.updated_at !== thread.created_at && (
-                    <span className="ml-1 text-xs italic">
-                      (edited{" "}
-                      {formatDistanceToNow(new Date(thread.updated_at), {
-                        addSuffix: true,
-                        locale: id,
-                      })}
-                      )
-                    </span>
-                  )}
               </span>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="prose max-w-none mb-6 whitespace-pre-line">
-            {thread.content}
+          <div className="prose max-w-none mb-4">
+            <RichTextContent content={thread.content} />
           </div>
-          <div className="flex items-center space-x-4">
-            <Avatar className="h-10 w-10">
-              <AvatarImage
-                src={
-                  thread.user?.avatar_url ||
-                  `https://api.dicebear.com/7.x/avataaars/svg?seed=${thread.user_id}`
-                }
-                alt={thread.user?.full_name || "User"}
-              />
-              <AvatarFallback>
-                {thread.user?.full_name?.[0] || "U"}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-medium text-gray-900">
-                {thread.user?.full_name || "User"}
-              </p>
-              <p className="text-sm text-gray-500">
-                {thread.user?.exp || 0} EXP
-              </p>
+
+          {thread.tags && thread.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-4">
+              {thread.tags.map((tag) => (
+                <TagBadge key={tag.id} tag={tag} size="sm" />
+              ))}
             </div>
+          )}
+
+          <div className="flex justify-between items-center mt-4">
+            <div className="flex items-center space-x-2">
+              <Avatar className="h-8 w-8">
+                <AvatarImage
+                  src={
+                    thread.user?.avatar_url ||
+                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${thread.user_id}`
+                  }
+                  alt={thread.user?.full_name || "User"}
+                />
+                <AvatarFallback>
+                  {thread.user?.full_name?.[0] || "U"}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  {thread.user?.full_name || "User"}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {thread.user?.exp || 0} EXP
+                </p>
+              </div>
+            </div>
+
+            <ThreadVote
+              voteCount={thread.vote_count}
+              userVote={userVote}
+              onVote={handleVote}
+            />
           </div>
         </CardContent>
-        <CardFooter className="border-t border-gray-100 pt-4 flex justify-between">
-          <div className="flex items-center space-x-2">
-            <ThreadVote
-              threadId={thread.id}
-              initialVotes={threadVotes}
-              onVoteComplete={handleThreadVoteComplete}
-            />
-            {user && user.id === thread.user_id && (
-              <Link to={`/forum/edit-thread/${thread.id}`}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center space-x-1"
-                >
-                  <Edit className="h-4 w-4" />
-                  <span>Edit</span>
-                </Button>
-              </Link>
-            )}
-          </div>
-          <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
-            <MessageSquare className="h-3 w-3 mr-1" />
-            {replies.length} Balasan
-          </Badge>
-        </CardFooter>
       </Card>
 
-      {/* Replies */}
-      <div className="space-y-4 mt-6">
-        <h3 className="text-lg font-semibold text-gray-900">Balasan</h3>
+      {/* Replies Section */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900">
+          Replies ({replies.length})
+        </h3>
 
         {replies.length === 0 ? (
           <Card className="p-6 text-center bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl">
-            <p className="text-gray-500">Belum ada balasan untuk thread ini.</p>
-            <p className="mt-2 text-gray-500">Jadilah yang pertama membalas!</p>
+            <p className="text-gray-500">
+              No replies yet. Be the first to reply!
+            </p>
           </Card>
         ) : (
           <div className="space-y-4">
@@ -453,7 +415,7 @@ export default function ThreadDetail() {
               >
                 <CardContent className="pt-4">
                   <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2">
                       <Avatar className="h-8 w-8">
                         <AvatarImage
                           src={
@@ -467,123 +429,124 @@ export default function ThreadDetail() {
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium text-gray-900">
+                        <p className="text-sm font-medium text-gray-900">
                           {reply.user?.full_name || "User"}
                         </p>
-                        <p className="text-xs text-gray-500">
-                          {reply.user?.exp || 0} EXP
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {formatDistanceToNow(new Date(reply.created_at), {
-                        addSuffix: true,
-                        locale: id,
-                      })}
-                      {reply.updated_at &&
-                        reply.updated_at !== reply.created_at && (
-                          <span className="ml-1 text-xs italic">
-                            (edited{" "}
-                            {formatDistanceToNow(new Date(reply.updated_at), {
+                        <div className="flex items-center space-x-2">
+                          <p className="text-xs text-gray-500">
+                            {reply.user?.exp || 0} EXP
+                          </p>
+                          <span className="text-xs text-gray-400">•</span>
+                          <p className="text-xs text-gray-500">
+                            {formatDistanceToNow(new Date(reply.created_at), {
                               addSuffix: true,
                               locale: id,
                             })}
-                            )
-                          </span>
-                        )}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   {editingReplyId === reply.id ? (
-                    <div className="mb-4">
-                      <Textarea
-                        value={editReplyContent}
-                        onChange={(e) => setEditReplyContent(e.target.value)}
-                        className="min-h-[120px] mb-2"
-                        disabled={isSubmittingEdit}
+                    <div className="space-y-2">
+                      <RichTextEditor
+                        content={editContent}
+                        onChange={setEditContent}
+                        placeholder="Edit your reply..."
+                        disabled={submitting}
                       />
-                      <div className="flex justify-end space-x-2">
+                      <div className="flex justify-end space-x-2 mt-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setEditingReplyId(null)}
-                          disabled={isSubmittingEdit}
+                          onClick={handleCancelEdit}
+                          disabled={submitting}
                         >
                           Cancel
                         </Button>
                         <Button
-                          variant="default"
                           size="sm"
                           onClick={() => handleUpdateReply(reply.id)}
-                          disabled={isSubmittingEdit}
-                          className="bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:opacity-90"
+                          disabled={submitting}
                         >
-                          {isSubmittingEdit ? "Saving..." : "Save Changes"}
+                          {submitting ? (
+                            <>
+                              <LoadingSpinner className="mr-2" />
+                              Updating...
+                            </>
+                          ) : (
+                            "Update Reply"
+                          )}
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="prose max-w-none mb-4 whitespace-pre-line">
-                      {reply.content}
+                    <div className="prose max-w-none mb-4">
+                      <RichTextContent content={reply.content} />
                     </div>
                   )}
 
-                  {user && (
+                  <div className="mt-4">
                     <ReplyActions
                       replyId={reply.id}
-                      isAuthor={user.id === reply.user_id}
-                      userVote={userReplyVotes[reply.id] || null}
+                      isAuthor={user?.id === reply.user_id}
+                      userVote={replyVotes[reply.id] || null}
                       voteCount={reply.vote_count || { cendol: 0, bata: 0 }}
-                      onVote={(voteType) => handleReplyVote(voteType, reply.id)}
-                      onEdit={() => handleEditReply(reply)}
+                      onVote={(voteType) => handleReplyVote(reply.id, voteType)}
+                      onEdit={() => handleEditReply(reply.id, reply.content)}
                       onDelete={() => handleDeleteReply(reply.id)}
                     />
-                  )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
 
-        {/* Reply form */}
-        <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl overflow-hidden mt-6">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-900">
-              Tambahkan Balasan
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleReplySubmit}>
-              <Textarea
-                placeholder="Tulis balasan Anda di sini..."
-                className="min-h-[120px] mb-4"
-                value={replyContent}
-                onChange={(e) => setReplyContent(e.target.value)}
-                disabled={submitting || !user}
-              />
-              {!user ? (
-                <div className="text-center">
-                  <p className="text-gray-500 mb-2">
-                    Silakan login untuk membalas thread ini.
-                  </p>
-                  <Link to="/login">
-                    <Button className="bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:opacity-90">
-                      Login
-                    </Button>
-                  </Link>
-                </div>
-              ) : (
-                <Button
-                  type="submit"
-                  className="bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:opacity-90"
+        {/* Reply Form */}
+        {user ? (
+          <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-medium text-gray-900">
+                Add Your Reply
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmitReply} className="space-y-4">
+                <RichTextEditor
+                  content={replyContent}
+                  onChange={setReplyContent}
+                  placeholder="Write your reply here..."
                   disabled={submitting}
-                >
-                  {submitting ? "Mengirim..." : "Kirim Balasan"}
-                </Button>
-              )}
-            </form>
-          </CardContent>
-        </Card>
+                />
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    className="bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:opacity-90"
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <>
+                        <LoadingSpinner className="mr-2" />
+                        Posting...
+                      </>
+                    ) : (
+                      "Post Reply"
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="p-6 text-center bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl">
+            <p className="text-gray-700 mb-2">Want to join the discussion?</p>
+            <Button asChild>
+              <Link to="/login">Login to Reply</Link>
+            </Button>
+          </Card>
+        )}
       </div>
     </div>
   );

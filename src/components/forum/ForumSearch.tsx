@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Search } from "@/components/ui/search";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import TagBadge from "./TagBadge";
 import { Button } from "@/components/ui/button";
 import { ForumSearchFilters, ForumTag } from "@/types/forum";
 import {
@@ -229,21 +230,14 @@ export default function ForumSearch({
               <h4 className="text-xs font-medium mb-2 text-gray-500">Tags:</h4>
               <div className="flex flex-wrap gap-2">
                 {tags.map((tag) => (
-                  <Badge
+                  <TagBadge
                     key={tag.id}
-                    className="cursor-pointer"
-                    style={{
-                      backgroundColor: selectedTags.includes(tag.id)
-                        ? tag.color
-                        : `${tag.color}20`,
-                      color: selectedTags.includes(tag.id)
-                        ? "white"
-                        : tag.color,
-                    }}
+                    tag={tag}
+                    selected={selectedTags.includes(tag.id)}
                     onClick={() => toggleTag(tag.id)}
-                  >
-                    {tag.name}
-                  </Badge>
+                    size="sm"
+                    showUsageCount
+                  />
                 ))}
               </div>
             </div>

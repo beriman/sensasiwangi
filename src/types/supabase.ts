@@ -108,6 +108,63 @@ export type Database = {
           },
         ]
       }
+      forum_reports: {
+        Row: {
+          created_at: string | null
+          id: string
+          priority: string
+          reason: string
+          reply_id: string | null
+          reporter_id: string
+          resolution_notes: string | null
+          resolved_by: string | null
+          status: string
+          thread_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          priority?: string
+          reason: string
+          reply_id?: string | null
+          reporter_id: string
+          resolution_notes?: string | null
+          resolved_by?: string | null
+          status?: string
+          thread_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          priority?: string
+          reason?: string
+          reply_id?: string | null
+          reporter_id?: string
+          resolution_notes?: string | null
+          resolved_by?: string | null
+          status?: string
+          thread_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_reports_reply_id_fkey"
+            columns: ["reply_id"]
+            isOneToOne: false
+            referencedRelation: "forum_replies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forum_reports_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "forum_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_threads: {
         Row: {
           category_id: string

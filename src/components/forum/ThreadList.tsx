@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import TagBadge from "./TagBadge";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, ThumbsDown, ThumbsUp, Clock } from "lucide-react";
 import { getThreadsByCategory } from "@/lib/forum";
@@ -119,14 +120,7 @@ export default function ThreadList() {
                   {thread.tags && thread.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-3">
                       {thread.tags.map((tag) => (
-                        <Badge
-                          key={tag.id}
-                          variant="outline"
-                          className="text-xs"
-                          style={{ color: tag.color, borderColor: tag.color }}
-                        >
-                          {tag.name}
-                        </Badge>
+                        <TagBadge key={tag.id} tag={tag} size="sm" />
                       ))}
                     </div>
                   )}

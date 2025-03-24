@@ -4,11 +4,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import TagSelector from "./TagSelector";
-import MarkdownPreview from "./MarkdownPreview";
-import { ArrowLeft, Image, Link2, FileText, Tag as TagIcon, Eye } from "lucide-react";
-import { getThread, updateThread, getForumTags, getForumCategories } from "@/lib/forum";
+import { ArrowLeft, Eye } from "lucide-react";
+import RichTextEditor from "./RichTextEditor";
+import RichTextContent from "./RichTextContent";
+import {
+  getThread,
+  updateThread,
+  getForumTags,
+  getForumCategories,
+} from "@/lib/forum";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAuth } from "../../../supabase/auth";
 import { useToast } from "@/components/ui/use-toast";
@@ -38,10 +50,10 @@ export default function EditThread() {
 
       try {
         setLoading(true);
-        
+
         // Fetch thread data
         const { thread } = await getThread(threadId);
-        
+
         // Check if user is the author of the thread
         if (thread.user_id !== user.id) {
           toast({
@@ -52,30 +64,32 @@ export default function EditThread() {
           navigate(`/forum/thread/${threadId}`);
           return;
         }
-        
+
         setOriginalAuthorId(thread.user_id);
         setTitle(thread.title);
         setContent(thread.content);
         setSelectedCategory(thread.category_id);
-        
+
         // Fetch categories and tags
         const [categoriesData, tagsData] = await Promise.all([
           getForumCategories(),
-          getForumTags()
+          getForumTags(),
         ]);
-        
+
         setCategories(categoriesData);
         setTags(tagsData);
-        
+
         // Set category name based on ID
-        const category = categoriesData.find(cat => cat.id === thread.category_id);
+        const category = categoriesData.find(
+          (cat) => cat.id === thread.category_id,
+        );
         if (category) {
           setCategoryName(category.name);
         }
-        
+
         // Get thread tags if any
         if (thread.tags && thread.tags.length > 0) {
-          setSelectedTags(thread.tags.map(tag => tag.id));
+          setSelectedTags(thread.tags.map((tag) => tag.id));
         }
       } catch (error) {
         console.error("Error fetching thread data:", error);
@@ -106,9 +120,9 @@ export default function EditThread() {
   }, [user, toast, navigate]);
 
   const handleTagChange = (tagId: string) => {
-    setSelectedTags(prev => {
+    setSelectedTags((prev) => {
       if (prev.includes(tagId)) {
-        return prev.filter(id => id !== tagId);
+        return prev.filter((id) => id !== tagId);
       } else {
         return [...prev, tagId];
       }
@@ -117,49 +131,13 @@ export default function EditThread() {
 
   const handleCategoryChange = (value: string) => {
     setSelectedCategory(value);
-    const category = categories.find(cat => cat.id === value);
+    const category = categories.find((cat) => cat.id === value);
     if (category) {
       setCategoryName(category.name);
     }
   };
 
-  const insertFormatting = (format: string) => {
-    let formattingText = "";
-    let selectionStart = 0;
-    let selectionEnd = 0;
-    
-    switch (format) {
-      case "bold":
-        formattingText = "**Bold Text**";
-        selectionStart = 2;
-        selectionEnd = 11;
-        break;
-      case "italic":
-        formattingText = "*Italic Text*";
-        selectionStart = 1;
-        selectionEnd = 12;
-        break;
-      case "link":
-        formattingText = "[Link Text](https://example.com)";
-        selectionStart = 1;
-        selectionEnd = 10;
-        break;
-      case "image":
-        formattingText = "![Image Description](https://example.com/image.jpg)";
-        selectionStart = 2;
-        selectionEnd = 19;
-        break;
-      case "quote":
-        formattingText = "> Quoted text\n";
-        selectionStart = 2;
-        selectionEnd = 13;
-        break;
-      default:
-        return;
-    }
-    
-    setContent(prev => prev + formattingText);
-  };
+  // Rich text editor handles formatting internally
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,11 +155,11 @@ export default function EditThread() {
       setSubmitting(true);
       await updateThread(
         threadId!,
-        title, 
-        content, 
-        selectedCategory, 
-        user!.id, 
-        selectedTags.length > 0 ? selectedTags : undefined
+        title,
+        content,
+        selectedCategory,
+        user!.id,
+        selectedTags.length > 0 ? selectedTags : undefined,
       );
 
       toast({
@@ -247,13 +225,13 @@ export default function EditThread() {
                 className="w-full"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">
                 Category
               </label>
-              <Select 
-                value={selectedCategory} 
+              <Select
+                value={selectedCategory}
                 onValueChange={handleCategoryChange}
                 disabled={submitting}
               >
@@ -269,13 +247,13 @@ export default function EditThread() {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <TagSelector
               selectedTags={selectedTags}
               onChange={setSelectedTags}
               disabled={submitting}
             />
-            
+
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <label
@@ -284,91 +262,36 @@ export default function EditThread() {
                 >
                   Content
                 </label>
-                <div className="flex space-x-1">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => insertFormatting("bold")}
-                    className="px-2"
-                    title="Bold"
-                  >
-                    <span className="font-bold">B</span>
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => insertFormatting("italic")}
-                    className="px-2"
-                    title="Italic"
-                  >
-                    <span className="italic">I</span>
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => insertFormatting("link")}
-                    className="px-2"
-                    title="Link"
-                  >
-                    <Link2 className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => insertFormatting("image")}
-                    className="px-2"
-                    title="Image"
-                  >
-                    <Image className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => insertFormatting("quote")}
-                    className="px-2"
-                    title="Quote"
-                  >
-                    <FileText className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant={showPreview ? "default" : "outline"}
-                    size="sm" 
-                    onClick={() => setShowPreview(!showPreview)}
-                    className="px-2 ml-2"
-                    title="Preview"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  variant={showPreview ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowPreview(!showPreview)}
+                  className="px-2"
+                  title="Preview"
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  {showPreview ? "Edit" : "Preview"}
+                </Button>
               </div>
               {!showPreview ? (
-                <>
-                  <Textarea
-                    id="content"
-                    placeholder="Write your thread content here..."
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    disabled={submitting}
-                    className="min-h-[300px] w-full font-mono"
-                  />
-                  <div className="text-xs text-gray-500">
-                    Formatting support: **bold**, *italic*, [link](url), ![image](url), > quote
-                  </div>
-                </>
+                <RichTextEditor
+                  content={content}
+                  onChange={setContent}
+                  placeholder="Write your thread content here..."
+                  disabled={submitting}
+                  className="min-h-[300px]"
+                />
               ) : (
                 <>
-                  <MarkdownPreview content={content} className="min-h-[300px]" />
+                  <div className="border rounded-md p-4 min-h-[300px] bg-white">
+                    <RichTextContent content={content} />
+                  </div>
                   <div className="flex justify-end mt-2">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => setShowPreview(false)}
                     >
                       Back to Editor
@@ -377,7 +300,7 @@ export default function EditThread() {
                 </>
               )}
             </div>
-            
+
             <div className="pt-2">
               <Button
                 type="submit"
