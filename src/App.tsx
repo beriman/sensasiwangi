@@ -11,6 +11,7 @@ import Marketplace from "./components/pages/marketplace";
 import AdminPanel from "./components/pages/admin";
 import Profile from "./components/pages/profile";
 import Settings from "./components/pages/settings";
+import Messages from "./components/pages/messages";
 import { AuthProvider, useAuth } from "../supabase/auth";
 import { Toaster } from "./components/ui/toaster";
 import { LoadingScreen, LoadingSpinner } from "./components/ui/loading-spinner";
@@ -92,6 +93,14 @@ function AppRoutes() {
           element={
             <PrivateRoute>
               <Settings />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/messages/:conversationId?"
+          element={
+            <PrivateRoute>
+              <Messages />
             </PrivateRoute>
           }
         />

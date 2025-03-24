@@ -8,11 +8,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "../../../supabase/auth";
 import { supabase } from "../../../supabase/supabase";
 import { LoadingScreen } from "@/components/ui/loading-spinner";
-import { Crown, Settings, MessageSquare, ShoppingBag } from "lucide-react";
+import {
+  Crown,
+  Settings,
+  MessageSquare,
+  ShoppingBag,
+  Mail,
+} from "lucide-react";
 import UserProfileCard from "../dashboard/UserProfileCard";
 import BookmarkedThreads from "../profile/BookmarkedThreads";
 import { getUserBadges, getAllBadges } from "@/lib/forum";
 import { ForumBadge } from "@/types/forum";
+import MessageButton from "../messages/MessageButton";
 
 interface UserProfile {
   username: string;
@@ -140,6 +147,15 @@ export default function Profile() {
                     </Badge>
                   </div>
                 </div>
+                {user && profile && user.id !== profile.id && (
+                  <MessageButton
+                    userId={profile.id}
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2"
+                    showIcon={true}
+                  />
+                )}
                 <Link to="/settings">
                   <Button variant="outline" size="sm" className="w-full mt-2">
                     <Settings className="h-4 w-4 mr-2" />

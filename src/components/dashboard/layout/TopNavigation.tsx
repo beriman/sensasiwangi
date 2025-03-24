@@ -15,10 +15,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Home, Search, Settings, User } from "lucide-react";
+import { Home, MessageSquare, Search, Settings, User } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../../../supabase/auth";
 import NotificationCenter from "@/components/forum/NotificationCenter";
+import UnreadMessagesIndicator from "@/components/messages/UnreadMessagesIndicator";
 
 interface TopNavigationProps {
   onSearch?: (query: string) => void;
@@ -50,6 +51,23 @@ const TopNavigation = ({ onSearch = () => {} }: TopNavigationProps) => {
 
       <div className="flex items-center gap-4">
         <NotificationCenter />
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link to="/messages" className="relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 rounded-full"
+                >
+                  <MessageSquare className="h-5 w-5 text-gray-600" />
+                </Button>
+                <UnreadMessagesIndicator className="absolute -top-1 -right-1" />
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Messages</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Avatar className="h-8 w-8 hover:cursor-pointer">
