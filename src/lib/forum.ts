@@ -422,6 +422,7 @@ export async function createThread(
   content: string,
   categoryId: string,
   userId: string,
+  tagIds?: string[],
 ): Promise<{
   thread: ForumThread;
   levelUp?: { newLevel: number; oldLevel: number };
@@ -440,8 +441,46 @@ export async function createThread(
 
   if (error) throw error;
 
+  // Add tags if provided
+  if (tagIds && tagIds.length > 0 && data) {
+    const threadTags = tagIds.map((tagId) => ({
+      thread_id: data.id,
+      tag_id: tagId,
+    }));
+
+    const { error: tagError } = await supabase
+      .from("forum_thread_tags")
+      .insert(threadTags);
+
+    if (tagError) {
+      console.error("Error adding tags to thread:", tagError);
+      // Continue execution even if tag insertion fails
+    }
+  }
+
   // Update user EXP
   const expResult = await updateUserExp(userId, EXP_CREATE_THREAD);
+
+  // Get user name for mention notifications
+  const { data: userData } = await supabase
+    .from("users")
+    .select("full_name")
+    .eq("id", userId)
+    .single();
+
+  const userName = userData?.full_name || "Seseorang";
+
+  // Check for mentions in the content
+  await createMentionNotification(content, userId, userName, data.id);
+
+  // Create level up notification if applicable
+  if (expResult.leveledUp) {
+    await createLevelUpNotification(
+      userId,
+      expResult.newLevel!,
+      expResult.oldLevel!,
+    );
+  }
 
   return {
     thread: data,
@@ -468,6 +507,22 @@ export async function createReply(
     .single();
 
   if (error) throw error;
+
+  // Get user name for notification
+  const { data: userData } = await supabase
+    .from("users")
+    .select("full_name")
+    .eq("id", userId)
+    .single();
+
+  const userName = userData?.full_name || "Seseorang";
+
+  // Create notification for thread author
+  await createReplyNotification(threadId, data.id, userName);
+
+  // Check for mentions in the content
+  await createMentionNotification(content, userId, userName, threadId, data.id);
+
   return data;
 }
 
@@ -491,6 +546,15 @@ export async function vote(
     )
     .single();
 
+  // Get voter name for notification
+  const { data: userData } = await supabase
+    .from("users")
+    .select("full_name")
+    .eq("id", userId)
+    .single();
+
+  const voterName = userData?.full_name || "Seseorang";
+
   // If vote exists and is the same type, remove it (toggle off)
   if (existingVote && existingVote.vote_type === voteType) {
     await supabase.from("forum_votes").delete().match({ id: existingVote.id });
@@ -500,7 +564,8 @@ export async function vote(
       ? await getThreadAuthor(threadId)
       : await getReplyAuthor(replyId!);
 
-    if (targetUserId) {
+    if (targetUserId && targetUserId !== userId) {
+      // Don't adjust EXP if voting on own content
       const expChange =
         voteType === "cendol" ? -EXP_RECEIVE_CENDOL : -EXP_RECEIVE_BATA;
       await updateUserExp(targetUserId, expChange);
@@ -520,7 +585,8 @@ export async function vote(
       ? await getThreadAuthor(threadId)
       : await getReplyAuthor(replyId!);
 
-    if (targetUserId) {
+    if (targetUserId && targetUserId !== userId) {
+      // Don't adjust EXP if voting on own content
       // Reverse previous vote EXP
       const previousExpChange =
         existingVote.vote_type === "cendol"
@@ -533,7 +599,25 @@ export async function vote(
         voteType === "cendol" ? EXP_RECEIVE_CENDOL : EXP_RECEIVE_BATA;
       const expResult = await updateUserExp(targetUserId, newExpChange);
 
+      // Create notification for cendol votes
+      if (voteType === "cendol") {
+        await createVoteNotification(
+          targetUserId,
+          voterName,
+          voteType,
+          threadId,
+          replyId,
+        );
+      }
+
       if (expResult.leveledUp) {
+        // Create level up notification
+        await createLevelUpNotification(
+          targetUserId,
+          expResult.newLevel!,
+          expResult.oldLevel!,
+        );
+
         return {
           levelUp: {
             newLevel: expResult.newLevel!,
@@ -559,12 +643,31 @@ export async function vote(
     ? await getThreadAuthor(threadId)
     : await getReplyAuthor(replyId!);
 
-  if (targetUserId) {
+  if (targetUserId && targetUserId !== userId) {
+    // Don't adjust EXP if voting on own content
     const expChange =
       voteType === "cendol" ? EXP_RECEIVE_CENDOL : EXP_RECEIVE_BATA;
     const expResult = await updateUserExp(targetUserId, expChange);
 
+    // Create notification for cendol votes
+    if (voteType === "cendol") {
+      await createVoteNotification(
+        targetUserId,
+        voterName,
+        voteType,
+        threadId,
+        replyId,
+      );
+    }
+
     if (expResult.leveledUp) {
+      // Create level up notification
+      await createLevelUpNotification(
+        targetUserId,
+        expResult.newLevel!,
+        expResult.oldLevel!,
+      );
+
       return {
         levelUp: {
           newLevel: expResult.newLevel!,
@@ -584,17 +687,30 @@ export async function getUserVote(
   threadId?: string,
   replyId?: string,
 ): Promise<VoteType | null> {
-  const { data } = await supabase
-    .from("forum_votes")
-    .select("vote_type")
-    .match(
-      threadId
-        ? { user_id: userId, thread_id: threadId }
-        : { user_id: userId, reply_id: replyId },
-    )
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from("forum_votes")
+      .select("vote_type")
+      .match(
+        threadId
+          ? { user_id: userId, thread_id: threadId }
+          : { user_id: userId, reply_id: replyId },
+      )
+      .single();
 
-  return data ? (data.vote_type as VoteType) : null;
+    if (error) {
+      if (error.code === "PGRST116") {
+        // No rows returned
+        return null;
+      }
+      throw error;
+    }
+
+    return data ? (data.vote_type as VoteType) : null;
+  } catch (error) {
+    console.error("Error getting user vote:", error);
+    return null;
+  }
 }
 
 // Helper function to get thread author
@@ -653,4 +769,442 @@ async function updateUserExp(
     newLevel: leveledUp ? newLevel : undefined,
     oldLevel: leveledUp ? currentLevel : undefined,
   };
+}
+
+// Bookmark a thread
+export async function bookmarkThread(
+  userId: string,
+  threadId: string,
+): Promise<void> {
+  const { error } = await supabase.from("forum_bookmarks").insert({
+    user_id: userId,
+    thread_id: threadId,
+  });
+
+  if (error) throw error;
+}
+
+// Remove bookmark from a thread
+export async function unbookmarkThread(
+  userId: string,
+  threadId: string,
+): Promise<void> {
+  const { error } = await supabase.from("forum_bookmarks").delete().match({
+    user_id: userId,
+    thread_id: threadId,
+  });
+
+  if (error) throw error;
+}
+
+// Follow a thread to receive notifications
+export async function followThread(
+  userId: string,
+  threadId: string,
+): Promise<void> {
+  const { error } = await supabase.from("forum_follows").insert({
+    user_id: userId,
+    thread_id: threadId,
+  });
+
+  if (error) throw error;
+}
+
+// Unfollow a thread
+export async function unfollowThread(
+  userId: string,
+  threadId: string,
+): Promise<void> {
+  const { error } = await supabase.from("forum_follows").delete().match({
+    user_id: userId,
+    thread_id: threadId,
+  });
+
+  if (error) throw error;
+}
+
+// Report inappropriate content
+export async function reportContent(
+  reporterId: string,
+  threadId?: string,
+  replyId?: string,
+  reason: string = "Inappropriate content",
+): Promise<void> {
+  const { error } = await supabase.from("forum_reports").insert({
+    reporter_id: reporterId,
+    thread_id: threadId || null,
+    reply_id: replyId || null,
+    reason: reason,
+    status: "pending",
+  });
+
+  if (error) throw error;
+}
+
+// Delete a thread
+export async function deleteThread(threadId: string): Promise<void> {
+  // First delete all replies to the thread
+  await supabase.from("forum_replies").delete().eq("thread_id", threadId);
+
+  // Delete all votes on the thread
+  await supabase.from("forum_votes").delete().eq("thread_id", threadId);
+
+  // Delete all bookmarks of the thread
+  await supabase.from("forum_bookmarks").delete().eq("thread_id", threadId);
+
+  // Delete all follows of the thread
+  await supabase.from("forum_follows").delete().eq("thread_id", threadId);
+
+  // Delete all reports of the thread
+  await supabase.from("forum_reports").delete().eq("thread_id", threadId);
+
+  // Finally delete the thread itself
+  const { error } = await supabase
+    .from("forum_threads")
+    .delete()
+    .eq("id", threadId);
+
+  if (error) throw error;
+}
+
+// Pin a thread to the top of a category
+export async function pinThread(threadId: string): Promise<void> {
+  const { error } = await supabase
+    .from("forum_threads")
+    .update({ is_pinned: true })
+    .eq("id", threadId);
+
+  if (error) throw error;
+}
+
+// Unpin a thread
+export async function unpinThread(threadId: string): Promise<void> {
+  const { error } = await supabase
+    .from("forum_threads")
+    .update({ is_pinned: false })
+    .eq("id", threadId);
+
+  if (error) throw error;
+}
+
+// Get notifications for a user
+export async function getNotifications(
+  userId: string,
+): Promise<ForumNotification[]> {
+  const { data, error } = await supabase
+    .from("forum_notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+// Mark a notification as read
+export async function markNotificationAsRead(
+  notificationId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("forum_notifications")
+    .update({ read: true })
+    .eq("id", notificationId);
+
+  if (error) throw error;
+}
+
+// Mark all notifications as read for a user
+export async function markAllNotificationsAsRead(
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("forum_notifications")
+    .update({ read: true })
+    .eq("user_id", userId)
+    .eq("read", false);
+
+  if (error) throw error;
+}
+
+// Create a notification
+export async function createNotification(
+  userId: string,
+  message: string,
+  type: string,
+  threadId?: string,
+  replyId?: string,
+): Promise<void> {
+  const { error } = await supabase.from("forum_notifications").insert({
+    user_id: userId,
+    message,
+    type,
+    thread_id: threadId || null,
+    reply_id: replyId || null,
+    read: false,
+  });
+
+  if (error) throw error;
+}
+
+// Create a reply notification
+export async function createReplyNotification(
+  threadId: string,
+  replyId: string,
+  replierName: string,
+): Promise<void> {
+  // Get thread author
+  const { data: thread } = await supabase
+    .from("forum_threads")
+    .select("user_id, title")
+    .eq("id", threadId)
+    .single();
+
+  if (!thread) return;
+
+  // Don't notify if replying to own thread
+  const { data: reply } = await supabase
+    .from("forum_replies")
+    .select("user_id")
+    .eq("id", replyId)
+    .single();
+
+  if (!reply || reply.user_id === thread.user_id) return;
+
+  // Create notification
+  await createNotification(
+    thread.user_id,
+    `${replierName} membalas thread Anda "${thread.title.substring(0, 30)}${thread.title.length > 30 ? "..." : ""}"`,
+    "reply",
+    threadId,
+    replyId,
+  );
+}
+
+// Create a mention notification
+export async function createMentionNotification(
+  content: string,
+  authorId: string,
+  authorName: string,
+  threadId: string,
+  replyId?: string,
+): Promise<void> {
+  // Extract mentions from content (format: @username)
+  const mentionRegex = /@([a-zA-Z0-9_]+)/g;
+  const mentions = content.match(mentionRegex) || [];
+
+  if (mentions.length === 0) return;
+
+  // Get unique usernames without the @ symbol
+  const usernames = [...new Set(mentions.map((m) => m.substring(1)))];
+
+  // Find users by username
+  const { data: users } = await supabase
+    .from("users")
+    .select("id, username")
+    .in("username", usernames);
+
+  if (!users || users.length === 0) return;
+
+  // Create notification for each mentioned user
+  for (const user of users) {
+    // Don't notify self-mentions
+    if (user.id === authorId) continue;
+
+    await createNotification(
+      user.id,
+      `${authorName} menyebut Anda dalam ${replyId ? "balasan" : "thread"}`,
+      "mention",
+      threadId,
+      replyId,
+    );
+  }
+}
+
+// Create a vote notification
+export async function createVoteNotification(
+  targetUserId: string,
+  voterName: string,
+  voteType: string,
+  threadId?: string,
+  replyId?: string,
+): Promise<void> {
+  // Don't notify for bata votes (negative)
+  if (voteType === "bata") return;
+
+  let contentType = "thread";
+  let contentTitle = "";
+
+  if (threadId) {
+    const { data: thread } = await supabase
+      .from("forum_threads")
+      .select("title")
+      .eq("id", threadId)
+      .single();
+
+    if (thread) {
+      contentTitle = thread.title;
+    }
+  } else if (replyId) {
+    contentType = "balasan";
+
+    // Get thread title for context
+    const { data: reply } = await supabase
+      .from("forum_replies")
+      .select("thread_id")
+      .eq("id", replyId)
+      .single();
+
+    if (reply) {
+      const { data: thread } = await supabase
+        .from("forum_threads")
+        .select("title")
+        .eq("id", reply.thread_id)
+        .single();
+
+      if (thread) {
+        contentTitle = thread.title;
+      }
+    }
+  }
+
+  const message = `${voterName} memberi cendol pada ${contentType} Anda ${contentTitle ? `di "${contentTitle.substring(0, 30)}${contentTitle.length > 30 ? "..." : ""}"` : ""}`;
+
+  await createNotification(targetUserId, message, "vote", threadId, replyId);
+}
+
+// Create a level up notification
+export async function createLevelUpNotification(
+  userId: string,
+  newLevel: number,
+  oldLevel: number,
+): Promise<void> {
+  await createNotification(
+    userId,
+    `Selamat! Anda telah naik level dari ${oldLevel} ke ${newLevel}`,
+    "level_up",
+  );
+}
+
+// Get user's bookmarked threads
+export async function getUserBookmarks(userId: string): Promise<ForumThread[]> {
+  const { data, error } = await supabase
+    .from("forum_bookmarks")
+    .select("thread:thread_id(*, user:user_id(full_name, avatar_url, exp))")
+    .eq("user_id", userId);
+
+  if (error) throw error;
+
+  // Extract threads from the response and add vote counts
+  const bookmarkedThreads = await Promise.all(
+    (data || []).map(async (bookmark) => {
+      const thread = bookmark.thread;
+
+      // Get vote counts
+      const { data: cendolCount } = await supabase
+        .from("forum_votes")
+        .select("id", { count: "exact" })
+        .eq("thread_id", thread.id)
+        .eq("vote_type", "cendol");
+
+      const { data: bataCount } = await supabase
+        .from("forum_votes")
+        .select("id", { count: "exact" })
+        .eq("thread_id", thread.id)
+        .eq("vote_type", "bata");
+
+      // Get reply count
+      const { data: replyCount } = await supabase
+        .from("forum_replies")
+        .select("id", { count: "exact" })
+        .eq("thread_id", thread.id);
+
+      return {
+        ...thread,
+        vote_count: {
+          cendol: cendolCount?.length || 0,
+          bata: bataCount?.length || 0,
+        },
+        reply_count: replyCount?.length || 0,
+      };
+    }),
+  );
+
+  return bookmarkedThreads;
+}
+
+// Get user badges
+export async function getUserBadges(userId: string): Promise<ForumBadge[]> {
+  const { data, error } = await supabase
+    .from("forum_user_badges")
+    .select("badge:badge_id(*)")
+    .eq("user_id", userId);
+
+  if (error) throw error;
+
+  return (data || []).map((item) => item.badge as ForumBadge);
+}
+
+// Get all available badges
+export async function getAllBadges(): Promise<ForumBadge[]> {
+  const { data, error } = await supabase
+    .from("forum_badges")
+    .select("*")
+    .order("requirement_count", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+// Check if user has a specific badge
+export async function hasUserBadge(
+  userId: string,
+  badgeId: string,
+): Promise<boolean> {
+  const { count, error } = await supabase
+    .from("forum_user_badges")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("badge_id", badgeId);
+
+  if (error) throw error;
+  return count > 0;
+}
+
+// Get leaderboard data
+export async function getLeaderboard(
+  timeFrame: "week" | "month" | "all" = "month",
+): Promise<any[]> {
+  let query = supabase
+    .from("users")
+    .select(
+      "id, full_name, avatar_url, exp_points as exp, level, badges:forum_user_badges(badge:badge_id(*))",
+    )
+    .order("exp_points", { ascending: false })
+    .limit(10);
+
+  // Apply time frame filter if not "all"
+  if (timeFrame !== "all") {
+    const now = new Date();
+    let startDate = new Date();
+
+    if (timeFrame === "week") {
+      startDate.setDate(now.getDate() - 7);
+    } else if (timeFrame === "month") {
+      startDate.setMonth(now.getMonth() - 1);
+    }
+
+    query = query.gte("updated_at", startDate.toISOString());
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  // Format the badges data
+  return (data || []).map((user) => {
+    return {
+      ...user,
+      badges: user.badges?.map((b: any) => b.badge) || [],
+    };
+  });
 }

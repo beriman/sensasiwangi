@@ -9,6 +9,8 @@ import Home from "./components/pages/home";
 import Forum from "./components/pages/forum";
 import Marketplace from "./components/pages/marketplace";
 import AdminPanel from "./components/pages/admin";
+import Profile from "./components/pages/profile";
+import Settings from "./components/pages/settings";
 import { AuthProvider, useAuth } from "../supabase/auth";
 import { Toaster } from "./components/ui/toaster";
 import { LoadingScreen, LoadingSpinner } from "./components/ui/loading-spinner";
@@ -75,6 +77,22 @@ function AppRoutes() {
             <AdminRoute>
               <AdminPanel />
             </AdminRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <PrivateRoute>
+              <Profile />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <PrivateRoute>
+              <Settings />
+            </PrivateRoute>
           }
         />
       </Routes>

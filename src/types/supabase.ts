@@ -9,6 +9,42 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      forum_badges: {
+        Row: {
+          color: string
+          created_at: string | null
+          description: string | null
+          icon: string
+          id: string
+          name: string
+          requirement_count: number
+          requirement_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          color: string
+          created_at?: string | null
+          description?: string | null
+          icon: string
+          id?: string
+          name: string
+          requirement_count: number
+          requirement_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string
+          created_at?: string | null
+          description?: string | null
+          icon?: string
+          id?: string
+          name?: string
+          requirement_count?: number
+          requirement_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       forum_categories: {
         Row: {
           created_at: string | null
@@ -117,6 +153,42 @@ export type Database = {
           },
         ]
       }
+      forum_user_badges: {
+        Row: {
+          awarded_at: string | null
+          badge_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          awarded_at?: string | null
+          badge_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          awarded_at?: string | null
+          badge_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_user_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "forum_badges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forum_user_badges_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_votes: {
         Row: {
           created_at: string | null
@@ -160,6 +232,50 @@ export type Database = {
           {
             foreignKeyName: "forum_votes_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketplace_products: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          image_url: string | null
+          name: string
+          price: number
+          seller_id: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          price: number
+          seller_id: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          price?: number
+          seller_id?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_products_seller_id_fkey"
+            columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]

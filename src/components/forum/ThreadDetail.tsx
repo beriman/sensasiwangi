@@ -11,8 +11,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ThumbsUp, ThumbsDown, ArrowLeft, Clock } from "lucide-react";
-import { getThread, createReply, vote, getUserVote } from "@/lib/forum";
+import { ArrowLeft, Clock } from "lucide-react";
+import { getThread, createReply } from "@/lib/forum";
+import ThreadVote from "./ThreadVote";
 import { ForumThread, ForumReply, VoteType } from "@/types/forum";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAuth } from "../../../supabase/auth";
@@ -27,7 +28,10 @@ export default function ThreadDetail() {
   const [loading, setLoading] = useState(true);
   const [replyContent, setReplyContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [userThreadVote, setUserThreadVote] = useState<VoteType | null>(null);
+  const [threadVotes, setThreadVotes] = useState<{
+    cendol: number;
+    bata: number;
+  }>({ cendol: 0, bata: 0 });
   const [userReplyVotes, setUserReplyVotes] = useState<
     Record<string, VoteType>
   >({});
@@ -46,12 +50,13 @@ export default function ThreadDetail() {
         setThread(data.thread);
         setReplies(data.replies);
 
-        // Get user's votes if logged in
-        if (user) {
-          const threadVote = await getUserVote(user.id, threadId);
-          setUserThreadVote(threadVote);
+        // Set thread votes
+        if (data.thread.vote_count) {
+          setThreadVotes(data.thread.vote_count);
+        }
 
-          // Get votes for each reply
+        // Get votes for each reply if user is logged in
+        if (user) {
           const replyVotes: Record<string, VoteType> = {};
           for (const reply of data.replies) {
             const replyVote = await getUserVote(user.id, undefined, reply.id);
@@ -126,11 +131,7 @@ export default function ThreadDetail() {
     }
   };
 
-  const handleVote = async (
-    voteType: VoteType,
-    targetId: string,
-    isReply: boolean = false,
-  ) => {
+  const handleReplyVote = async (voteType: VoteType, targetId: string) => {
     if (!user) {
       toast({
         title: "Login Diperlukan",
@@ -142,30 +143,18 @@ export default function ThreadDetail() {
     }
 
     try {
-      let result;
-      if (isReply) {
-        result = await vote(user.id, voteType, undefined, targetId);
+      const result = await vote(user.id, voteType, undefined, targetId);
 
-        // Update UI optimistically
-        const currentVote = userReplyVotes[targetId];
-        if (currentVote === voteType) {
-          // Remove vote if clicking the same button
-          const newVotes = { ...userReplyVotes };
-          delete newVotes[targetId];
-          setUserReplyVotes(newVotes);
-        } else {
-          // Set or change vote
-          setUserReplyVotes({ ...userReplyVotes, [targetId]: voteType });
-        }
+      // Update UI optimistically
+      const currentVote = userReplyVotes[targetId];
+      if (currentVote === voteType) {
+        // Remove vote if clicking the same button
+        const newVotes = { ...userReplyVotes };
+        delete newVotes[targetId];
+        setUserReplyVotes(newVotes);
       } else {
-        result = await vote(user.id, voteType, targetId);
-
-        // Update UI optimistically
-        if (userThreadVote === voteType) {
-          setUserThreadVote(null);
-        } else {
-          setUserThreadVote(voteType);
-        }
+        // Set or change vote
+        setUserReplyVotes({ ...userReplyVotes, [targetId]: voteType });
       }
 
       // Check for level up
@@ -194,14 +183,6 @@ export default function ThreadDetail() {
       const data = await getThread(threadId!);
       setThread(data.thread);
       setReplies(data.replies);
-
-      toast({
-        title: "Vote Berhasil",
-        description:
-          voteType === "cendol"
-            ? "Cendol berhasil diberikan!"
-            : "Bata berhasil diberikan!",
-      });
     } catch (error) {
       console.error("Error voting:", error);
       toast({
@@ -210,6 +191,26 @@ export default function ThreadDetail() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleThreadVoteComplete = (newVotes: {
+    cendol: number;
+    bata: number;
+  }) => {
+    setThreadVotes(newVotes);
+
+    // Refresh thread data to get updated information
+    const refreshThread = async () => {
+      try {
+        const data = await getThread(threadId!);
+        setThread(data.thread);
+        setReplies(data.replies);
+      } catch (error) {
+        console.error("Error refreshing thread:", error);
+      }
+    };
+
+    refreshThread();
   };
 
   if (loading) {
@@ -292,26 +293,11 @@ export default function ThreadDetail() {
           </div>
         </CardContent>
         <CardFooter className="border-t border-gray-100 pt-4 flex justify-between">
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`flex items-center ${userThreadVote === "cendol" ? "text-green-600 bg-green-50" : "text-gray-600"}`}
-              onClick={() => handleVote("cendol", thread.id)}
-            >
-              <ThumbsUp className="h-4 w-4 mr-1" />
-              Cendol ({thread.vote_count?.cendol || 0})
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`flex items-center ${userThreadVote === "bata" ? "text-red-600 bg-red-50" : "text-gray-600"}`}
-              onClick={() => handleVote("bata", thread.id)}
-            >
-              <ThumbsDown className="h-4 w-4 mr-1" />
-              Bata ({thread.vote_count?.bata || 0})
-            </Button>
-          </div>
+          <ThreadVote
+            threadId={thread.id}
+            initialVotes={threadVotes}
+            onVoteComplete={handleThreadVoteComplete}
+          />
           <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
             {replies.length} Balasan
           </Badge>
@@ -373,7 +359,7 @@ export default function ThreadDetail() {
                       variant="ghost"
                       size="sm"
                       className={`flex items-center ${userReplyVotes[reply.id] === "cendol" ? "text-green-600 bg-green-50" : "text-gray-600"}`}
-                      onClick={() => handleVote("cendol", reply.id, true)}
+                      onClick={() => handleReplyVote("cendol", reply.id)}
                     >
                       <ThumbsUp className="h-4 w-4 mr-1" />
                       Cendol ({reply.vote_count?.cendol || 0})
@@ -382,7 +368,7 @@ export default function ThreadDetail() {
                       variant="ghost"
                       size="sm"
                       className={`flex items-center ${userReplyVotes[reply.id] === "bata" ? "text-red-600 bg-red-50" : "text-gray-600"}`}
-                      onClick={() => handleVote("bata", reply.id, true)}
+                      onClick={() => handleReplyVote("bata", reply.id)}
                     >
                       <ThumbsDown className="h-4 w-4 mr-1" />
                       Bata ({reply.vote_count?.bata || 0})

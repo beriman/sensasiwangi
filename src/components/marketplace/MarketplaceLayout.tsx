@@ -25,7 +25,7 @@ export default function MarketplaceLayout({
             <Link to="/" className="font-medium text-xl flex items-center">
               <Droplet className="h-6 w-6 mr-2 text-purple-600" />
               <span className="bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent font-bold">
-                Scentrium
+                Sensasiwangi
               </span>
             </Link>
           </div>
@@ -83,7 +83,7 @@ export default function MarketplaceLayout({
       {/* Footer */}
       <footer className="bg-white py-6 border-t border-gray-200">
         <div className="max-w-[1200px] mx-auto px-4 text-center text-sm text-gray-500">
-          <p>© 2024 Scentrium. Marketplace Komunitas Perfumer Indonesia.</p>
+          <p>© 2024 Sensasiwangi. Marketplace Komunitas Perfumer Indonesia.</p>
         </div>
       </footer>
     </div>

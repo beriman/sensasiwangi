@@ -91,10 +91,12 @@ export default function ForumNotifications() {
 
     // Navigate to the relevant page
     setOpen(false);
-    if (notification.related_thread_id) {
-      navigate(`/forum/thread/${notification.related_thread_id}`);
-    } else if (notification.related_message_id) {
-      navigate(`/forum/messages`);
+    if (notification.thread_id) {
+      navigate(`/forum/thread/${notification.thread_id}`);
+    } else if (notification.reply_id) {
+      navigate(
+        `/forum/thread/${notification.thread_id}#reply-${notification.reply_id}`,
+      );
     }
   };
 
@@ -117,7 +119,7 @@ export default function ForumNotifications() {
       case "mention":
         return <AtSign className="h-4 w-4 text-purple-500" />;
       case "vote":
-        return notification.content.includes("upvoted") ? (
+        return notification.message.includes("cendol") ? (
           <ThumbsUp className="h-4 w-4 text-green-500" />
         ) : (
           <ThumbsDown className="h-4 w-4 text-red-500" />
@@ -126,6 +128,8 @@ export default function ForumNotifications() {
         return <Eye className="h-4 w-4 text-amber-500" />;
       case "message":
         return <MessageSquare className="h-4 w-4 text-pink-500" />;
+      case "level_up":
+        return <Bell className="h-4 w-4 text-yellow-500" />;
       default:
         return <Bell className="h-4 w-4 text-gray-500" />;
     }
@@ -177,7 +181,7 @@ export default function ForumNotifications() {
                       {getNotificationIcon(notification.type)}
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm">{notification.content}</p>
+                      <p className="text-sm">{notification.message}</p>
                       <p className="text-xs text-gray-500 mt-1">
                         {formatDistanceToNow(
                           new Date(notification.created_at),

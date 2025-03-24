@@ -86,11 +86,10 @@ export interface ForumFollow {
 export interface ForumNotification {
   id: string;
   user_id: string;
-  type: "reply" | "mention" | "vote" | "follow" | "message";
-  content: string;
-  related_thread_id?: string;
-  related_reply_id?: string;
-  related_message_id?: string;
+  message: string;
+  type: string; // 'reply', 'mention', 'vote', 'level_up', etc.
+  thread_id?: string;
+  reply_id?: string;
   read: boolean;
   created_at: string;
 }

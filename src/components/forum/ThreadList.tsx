@@ -10,12 +10,14 @@ import { ForumThread } from "@/types/forum";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { formatDistanceToNow } from "date-fns";
 import { id } from "date-fns/locale";
+import ForumSearch from "./ForumSearch";
 
 export default function ThreadList() {
   const { categoryId } = useParams<{ categoryId: string }>();
   const [threads, setThreads] = useState<ForumThread[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryName, setCategoryName] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     const fetchThreads = async () => {
@@ -47,6 +49,11 @@ export default function ThreadList() {
     fetchThreads();
   }, [categoryId]);
 
+  const handleSearchResults = (results: ForumThread[]) => {
+    setThreads(results);
+    setIsSearching(results.length > 0 || results.length === 0);
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -66,11 +73,22 @@ export default function ThreadList() {
         </Link>
       </div>
 
+      <ForumSearch
+        onSearchResults={handleSearchResults}
+        categoryId={categoryId}
+      />
+
       {threads.length === 0 ? (
         <Card className="p-6 text-center bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl">
-          <p className="text-gray-500">Belum ada thread di kategori ini.</p>
+          <p className="text-gray-500">
+            {isSearching
+              ? "Tidak ada thread yang sesuai dengan pencarian Anda."
+              : "Belum ada thread di kategori ini."}
+          </p>
           <p className="mt-2 text-gray-500">
-            Jadilah yang pertama membuat thread!
+            {isSearching
+              ? "Coba ubah kata kunci atau filter pencarian Anda."
+              : "Jadilah yang pertama membuat thread!"}
           </p>
         </Card>
       ) : (

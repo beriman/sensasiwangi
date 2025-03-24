@@ -44,6 +44,17 @@ export default function Forum() {
           </ForumLayout>
         }
       />
+      <Route
+        path="/search"
+        element={
+          <ForumLayout
+            title="Cari Thread"
+            subtitle="Temukan diskusi yang Anda cari"
+          >
+            <ThreadList />
+          </ForumLayout>
+        }
+      />
     </Routes>
   );
 }
