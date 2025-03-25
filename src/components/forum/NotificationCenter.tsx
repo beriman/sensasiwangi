@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Bell, Check } from "lucide-react";
+import { Bell, Check, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -20,12 +20,19 @@ import { ForumNotification } from "@/types/forum";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
 import { supabase } from "../../../supabase/supabase";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function NotificationCenter() {
   const [notifications, setNotifications] = useState<ForumNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<string | null>(null);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -206,7 +213,33 @@ export default function NotificationCenter() {
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-medium">Notifikasi</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium">Notifikasi</h3>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7">
+                  <Filter className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => setFilter(null)}>
+                  All
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter("reply")}>
+                  Replies
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter("mention")}>
+                  Mentions
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter("vote")}>
+                  Votes
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter("level_up")}>
+                  Level Up
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
@@ -227,46 +260,50 @@ export default function NotificationCenter() {
             </div>
           ) : notifications.length > 0 ? (
             <div className="py-2">
-              {notifications.map((notification) => (
-                <div key={notification.id} className="px-4 py-2">
-                  <div
-                    className={`flex gap-3 ${!notification.read ? "bg-purple-50 -mx-4 px-4 py-2 rounded" : ""}`}
-                  >
-                    {getNotificationIcon(notification.type)}
-                    <div className="flex-1">
-                      <Link
-                        to={getNotificationLink(notification)}
-                        className="text-sm font-medium hover:text-purple-700"
-                        onClick={() => {
-                          if (!notification.read) {
-                            handleMarkAsRead(notification.id);
-                          }
-                          setOpen(false);
-                        }}
-                      >
-                        {notification.message}
-                      </Link>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {formatDistanceToNow(
-                          new Date(notification.created_at),
-                          { addSuffix: true },
-                        )}
-                      </p>
+              {notifications
+                .filter((notification) =>
+                  filter ? notification.type === filter : true,
+                )
+                .map((notification) => (
+                  <div key={notification.id} className="px-4 py-2">
+                    <div
+                      className={`flex gap-3 ${!notification.read ? "bg-purple-50 -mx-4 px-4 py-2 rounded" : ""}`}
+                    >
+                      {getNotificationIcon(notification.type)}
+                      <div className="flex-1">
+                        <Link
+                          to={getNotificationLink(notification)}
+                          className="text-sm font-medium hover:text-purple-700"
+                          onClick={() => {
+                            if (!notification.read) {
+                              handleMarkAsRead(notification.id);
+                            }
+                            setOpen(false);
+                          }}
+                        >
+                          {notification.message}
+                        </Link>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {formatDistanceToNow(
+                            new Date(notification.created_at),
+                            { addSuffix: true },
+                          )}
+                        </p>
+                      </div>
+                      {!notification.read && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleMarkAsRead(notification.id)}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
-                    {!notification.read && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => handleMarkAsRead(notification.id)}
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+                    <Separator className="mt-2" />
                   </div>
-                  <Separator className="mt-2" />
-                </div>
-              ))}
+                ))}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-[300px] text-center p-4">

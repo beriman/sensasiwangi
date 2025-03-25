@@ -554,8 +554,11 @@ export default function ThreadActions({
               <>
                 <DropdownMenuSeparator />
                 {isAuthor && (
-                  <DropdownMenuItem asChild className="text-blue-600">
-                    <Link to={`/forum/edit/${threadId}`}>
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to={`/forum/edit/${threadId}`}
+                      className="flex items-center text-blue-600 hover:bg-blue-50 w-full px-2 py-1.5 rounded-sm"
+                    >
                       <Edit className="mr-2 h-4 w-4" />
                       <span>Edit Thread</span>
                     </Link>
@@ -563,7 +566,7 @@ export default function ThreadActions({
                 )}
                 <DropdownMenuItem
                   onClick={() => setShowDeleteDialog(true)}
-                  className="text-red-600"
+                  className="text-red-600 hover:bg-red-50"
                 >
                   <Trash className="mr-2 h-4 w-4" />
                   <span>Hapus Thread</span>

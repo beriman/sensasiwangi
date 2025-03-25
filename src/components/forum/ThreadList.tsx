@@ -146,18 +146,23 @@ export default function ThreadList() {
                   )}
                   <div className="flex justify-between items-center">
                     <div className="flex items-center space-x-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage
-                          src={
-                            thread.user?.avatar_url ||
-                            `https://api.dicebear.com/7.x/avataaars/svg?seed=${thread.user_id}`
-                          }
-                          alt={thread.user?.full_name || "User"}
-                        />
-                        <AvatarFallback>
-                          {thread.user?.full_name?.[0] || "U"}
-                        </AvatarFallback>
-                      </Avatar>
+                      <Link
+                        to={`/profile/${thread.user_id}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Avatar className="h-8 w-8 cursor-pointer hover:ring-2 hover:ring-purple-300 transition-all">
+                          <AvatarImage
+                            src={
+                              thread.user?.avatar_url ||
+                              `https://api.dicebear.com/7.x/avataaars/svg?seed=${thread.user_id}`
+                            }
+                            alt={thread.user?.full_name || "User"}
+                          />
+                          <AvatarFallback>
+                            {thread.user?.full_name?.[0] || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Link>
                       <div>
                         <p className="text-sm font-medium text-gray-900">
                           {thread.user?.full_name || "User"}

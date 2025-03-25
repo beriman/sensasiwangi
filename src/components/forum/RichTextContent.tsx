@@ -68,7 +68,7 @@ export default function RichTextContent({
       const user = mentionedUsers[username];
       if (user) {
         // Return a link to the user's profile
-        return `<a href="/profile/${user.id}" class="mention-link">@${username}</a>`;
+        return `<a href="/profile/${user.id}" class="mention-link text-purple-600 hover:underline">@${username}</a>`;
       }
       // If user not found, keep the original mention
       return `@${username}`;

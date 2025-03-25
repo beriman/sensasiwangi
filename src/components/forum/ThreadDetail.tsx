@@ -390,18 +390,20 @@ export default function ThreadDetail() {
 
           <div className="flex justify-between items-center pt-4 border-t border-gray-100">
             <div className="flex items-center space-x-2">
-              <Avatar className="h-10 w-10">
-                <AvatarImage
-                  src={
-                    thread.user?.avatar_url ||
-                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${thread.user_id}`
-                  }
-                  alt={thread.user?.full_name || "User"}
-                />
-                <AvatarFallback>
-                  {thread.user?.full_name?.[0] || "U"}
-                </AvatarFallback>
-              </Avatar>
+              <Link to={`/profile/${thread.user_id}`}>
+                <Avatar className="h-10 w-10 cursor-pointer hover:ring-2 hover:ring-purple-300 transition-all">
+                  <AvatarImage
+                    src={
+                      thread.user?.avatar_url ||
+                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${thread.user_id}`
+                    }
+                    alt={thread.user?.full_name || "User"}
+                  />
+                  <AvatarFallback>
+                    {thread.user?.full_name?.[0] || "U"}
+                  </AvatarFallback>
+                </Avatar>
+              </Link>
               <div>
                 <p className="text-sm font-medium text-gray-900">
                   {thread.user?.full_name || "User"}
@@ -476,18 +478,20 @@ export default function ThreadDetail() {
 
                   <div className="flex justify-between items-center pt-4 border-t border-gray-100">
                     <div className="flex items-center space-x-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage
-                          src={
-                            reply.user?.avatar_url ||
-                            `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.user_id}`
-                          }
-                          alt={reply.user?.full_name || "User"}
-                        />
-                        <AvatarFallback>
-                          {reply.user?.full_name?.[0] || "U"}
-                        </AvatarFallback>
-                      </Avatar>
+                      <Link to={`/profile/${reply.user_id}`}>
+                        <Avatar className="h-8 w-8 cursor-pointer hover:ring-2 hover:ring-purple-300 transition-all">
+                          <AvatarImage
+                            src={
+                              reply.user?.avatar_url ||
+                              `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.user_id}`
+                            }
+                            alt={reply.user?.full_name || "User"}
+                          />
+                          <AvatarFallback>
+                            {reply.user?.full_name?.[0] || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Link>
                       <div>
                         <div className="flex items-center">
                           <p className="text-sm font-medium text-gray-900">

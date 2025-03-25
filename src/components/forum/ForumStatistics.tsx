@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -114,18 +115,20 @@ export default function ForumStatistics() {
                 <div className="flex items-center justify-center h-6 w-6 rounded-full bg-purple-100 text-purple-600 text-xs font-bold mr-2">
                   {index + 1}
                 </div>
-                <Avatar className="h-8 w-8 mr-2">
-                  <AvatarImage
-                    src={
-                      contributor.avatar_url ||
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${contributor.user_id}`
-                    }
-                    alt={contributor.full_name}
-                  />
-                  <AvatarFallback>
-                    {contributor.full_name?.[0] || "U"}
-                  </AvatarFallback>
-                </Avatar>
+                <Link to={`/profile/${contributor.user_id}`}>
+                  <Avatar className="h-8 w-8 mr-2 cursor-pointer hover:ring-2 hover:ring-purple-300 transition-all">
+                    <AvatarImage
+                      src={
+                        contributor.avatar_url ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${contributor.user_id}`
+                      }
+                      alt={contributor.full_name}
+                    />
+                    <AvatarFallback>
+                      {contributor.full_name?.[0] || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
                 <div>
                   <div className="text-sm font-medium">
                     {contributor.full_name}

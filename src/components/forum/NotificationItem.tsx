@@ -69,10 +69,12 @@ export default function NotificationItem({
       <div className="flex-grow">
         <div className="flex items-center space-x-2 mb-1">
           {userId && (
-            <Avatar className="h-6 w-6">
-              <AvatarImage src={userAvatar} alt={userName} />
-              <AvatarFallback>{userName?.charAt(0) || "U"}</AvatarFallback>
-            </Avatar>
+            <Link to={`/profile/${userId}`}>
+              <Avatar className="h-6 w-6 cursor-pointer hover:ring-2 hover:ring-purple-300 transition-all">
+                <AvatarImage src={userAvatar} alt={userName} />
+                <AvatarFallback>{userName?.charAt(0) || "U"}</AvatarFallback>
+              </Avatar>
+            </Link>
           )}
           <span className="text-sm font-medium text-gray-900">
             {userName || "System"}

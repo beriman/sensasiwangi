@@ -1679,6 +1679,32 @@ export async function createReplyNotification(
     threadId,
     replyId,
   );
+
+  // Check if user has email notifications enabled for forum replies
+  const { data: userData } = await supabase
+    .from("users")
+    .select("email_forum_replies, email")
+    .eq("id", thread.user_id)
+    .single();
+
+  if (userData?.email_forum_replies && userData?.email) {
+    try {
+      // Send email notification
+      await supabase.functions.invoke("send_thread_notification", {
+        body: {
+          threadId,
+          replyId,
+          replierName,
+          threadTitle: thread.title,
+          recipientEmail: userData.email,
+          notificationType: "reply",
+        },
+      });
+    } catch (err) {
+      console.error("Error sending email notification:", err);
+      // Continue execution even if email notification fails
+    }
+  }
 }
 
 // Create a mention notification
@@ -1702,10 +1728,19 @@ export async function createMentionNotification(
   // Find users by username
   const { data: users } = await supabase
     .from("users")
-    .select("id, username")
+    .select("id, username, email, email_forum_replies")
     .in("username", usernames);
 
   if (!users || users.length === 0) return;
+
+  // Get thread title for context
+  const { data: thread } = await supabase
+    .from("forum_threads")
+    .select("title")
+    .eq("id", threadId)
+    .single();
+
+  const threadTitle = thread?.title || "";
 
   // Create notification for each mentioned user
   for (const user of users) {
@@ -1719,6 +1754,25 @@ export async function createMentionNotification(
       threadId,
       replyId,
     );
+
+    // Send email notification if enabled
+    if (user.email_forum_replies && user.email) {
+      try {
+        await supabase.functions.invoke("send_thread_notification", {
+          body: {
+            threadId,
+            replyId,
+            mentionerName: authorName,
+            threadTitle,
+            recipientEmail: user.email,
+            notificationType: "mention",
+          },
+        });
+      } catch (err) {
+        console.error("Error sending mention email notification:", err);
+        // Continue execution even if email notification fails
+      }
+    }
   }
 }
 

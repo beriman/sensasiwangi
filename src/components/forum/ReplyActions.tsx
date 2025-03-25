@@ -66,7 +66,7 @@ export default function ReplyActions({
           <Button
             variant="ghost"
             size="sm"
-            className="flex items-center text-blue-600"
+            className="flex items-center text-blue-600 hover:bg-blue-50"
             onClick={onEdit}
           >
             <Edit className="h-4 w-4 mr-1" />
@@ -75,7 +75,7 @@ export default function ReplyActions({
           <Button
             variant="ghost"
             size="sm"
-            className="flex items-center text-red-600"
+            className="flex items-center text-red-600 hover:bg-red-50"
             onClick={() => setShowDeleteDialog(true)}
           >
             <Trash2 className="h-4 w-4 mr-1" />
