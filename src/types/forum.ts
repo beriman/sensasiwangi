@@ -57,6 +57,8 @@ export interface ForumThread {
   reply_count?: number;
   is_bookmarked?: boolean;
   is_followed?: boolean;
+  is_read?: boolean;
+  is_trending?: boolean;
   poll?: ForumPoll;
   reactions?: Record<string, number>;
   user_reactions?: string[];
@@ -235,4 +237,12 @@ export interface ForumUserEventParticipation {
   updated_at: string;
   challenge?: ForumEventChallenge;
   event?: ForumSeasonalEvent;
+}
+
+export interface ForumReadingHistory {
+  id: string;
+  user_id: string;
+  thread_id: string;
+  created_at: string;
+  updated_at: string;
 }

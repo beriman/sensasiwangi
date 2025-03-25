@@ -5,13 +5,20 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import TagBadge from "./TagBadge";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, ThumbsDown, ThumbsUp, Clock } from "lucide-react";
+import {
+  MessageSquare,
+  ThumbsDown,
+  ThumbsUp,
+  Clock,
+  TrendingUp,
+} from "lucide-react";
 import { getThreadsByCategory } from "@/lib/forum";
 import { ForumThread } from "@/types/forum";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { formatDistanceToNow } from "date-fns";
 import { id } from "date-fns/locale";
 import ForumSearch from "./ForumSearch";
+import { useAuth } from "../../../supabase/auth";
 
 export default function ThreadList() {
   const { categoryId } = useParams<{ categoryId: string }>();
@@ -19,6 +26,7 @@ export default function ThreadList() {
   const [loading, setLoading] = useState(true);
   const [categoryName, setCategoryName] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchThreads = async () => {
@@ -26,7 +34,7 @@ export default function ThreadList() {
 
       try {
         setLoading(true);
-        const data = await getThreadsByCategory(categoryId);
+        const data = await getThreadsByCategory(categoryId, user?.id);
         setThreads(data);
 
         // Set category name from the first thread if available
@@ -48,7 +56,7 @@ export default function ThreadList() {
     };
 
     fetchThreads();
-  }, [categoryId]);
+  }, [categoryId, user]);
 
   const handleSearchResults = (results: ForumThread[]) => {
     setThreads(results);
@@ -96,12 +104,24 @@ export default function ThreadList() {
         <div className="space-y-4">
           {threads.map((thread) => (
             <Link key={thread.id} to={`/forum/thread/${thread.id}`}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl overflow-hidden">
+              <Card
+                className={`hover:shadow-md transition-shadow cursor-pointer bg-white/90 backdrop-blur-sm border ${thread.is_trending ? "border-orange-300" : thread.is_read ? "border-gray-100" : "border-purple-300"} rounded-2xl overflow-hidden ${thread.is_trending ? "shadow-orange-100" : ""}`}
+              >
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg font-semibold text-gray-900">
-                      {thread.title}
-                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <CardTitle
+                        className={`text-lg font-semibold ${thread.is_read ? "text-gray-900" : "text-purple-900"}`}
+                      >
+                        {thread.title}
+                      </CardTitle>
+                      {thread.is_trending && (
+                        <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 flex items-center gap-1">
+                          <TrendingUp className="h-3 w-3" />
+                          <span className="text-xs">Trending</span>
+                        </Badge>
+                      )}
+                    </div>
                     <div className="flex items-center space-x-2 text-sm text-gray-500">
                       <Clock className="h-4 w-4" />
                       <span>

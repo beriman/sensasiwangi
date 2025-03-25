@@ -141,6 +141,7 @@ export async function createCustomTag(tagData: {
 export async function searchThreads(
   searchTerm: string,
   filters: ForumSearchFilters = {},
+  userId?: string,
 ): Promise<ForumThread[]> {
   let query = supabase.from("forum_threads").select(
     `
@@ -232,6 +233,17 @@ export async function searchThreads(
 
   if (error) throw error;
 
+  // Get read history for this user if provided
+  let readThreadIds: string[] = [];
+  if (userId) {
+    const { data: readHistory } = await supabase
+      .from("forum_reading_history")
+      .select("thread_id")
+      .eq("user_id", userId);
+
+    readThreadIds = readHistory?.map((item) => item.thread_id) || [];
+  }
+
   // Get additional data for each thread
   const threadsWithData = await Promise.all(
     (data || []).map(async (thread) => {
@@ -262,6 +274,25 @@ export async function searchThreads(
 
       const tags = threadTags?.map((tt) => tt.tag) || [];
 
+      // Calculate trending score
+      // Factors: recent activity, votes, replies
+      const now = new Date();
+      const threadDate = new Date(thread.last_activity_at || thread.created_at);
+      const hoursSinceActivity =
+        (now.getTime() - threadDate.getTime()) / (1000 * 60 * 60);
+
+      // Trending algorithm: more weight to recent activity, votes and replies
+      // Threads less than 48 hours old with significant engagement are trending
+      const cendolValue = cendolCount?.length || 0;
+      const replyValue = replyCount?.length || 0;
+      const recencyFactor = Math.max(0, 48 - hoursSinceActivity) / 48; // 0-1 scale, 1 being very recent
+
+      // Calculate trending score - higher is better
+      const trendingScore = (cendolValue * 2 + replyValue * 3) * recencyFactor;
+
+      // Thread is trending if score exceeds threshold and is less than 48 hours old
+      const isTrending = trendingScore > 5 && hoursSinceActivity < 48;
+
       return {
         ...thread,
         vote_count: {
@@ -270,6 +301,8 @@ export async function searchThreads(
         },
         reply_count: replyCount?.length || 0,
         tags,
+        is_read: readThreadIds.includes(thread.id),
+        is_trending: isTrending,
       };
     }),
   );
@@ -387,6 +420,7 @@ export async function getForumStatistics(): Promise<ForumStatistics> {
 // Get threads by category
 export async function getThreadsByCategory(
   categoryId: string,
+  userId?: string,
 ): Promise<ForumThread[]> {
   const { data, error } = await supabase
     .from("forum_threads")
@@ -400,6 +434,17 @@ export async function getThreadsByCategory(
     .order("created_at", { ascending: false });
 
   if (error) throw error;
+
+  // Get read history for this user if provided
+  let readThreadIds: string[] = [];
+  if (userId) {
+    const { data: readHistory } = await supabase
+      .from("forum_reading_history")
+      .select("thread_id")
+      .eq("user_id", userId);
+
+    readThreadIds = readHistory?.map((item) => item.thread_id) || [];
+  }
 
   // Get vote counts for each thread
   const threadsWithVotes = await Promise.all(
@@ -421,6 +466,25 @@ export async function getThreadsByCategory(
         .select("id", { count: "exact" })
         .eq("thread_id", thread.id);
 
+      // Calculate trending score
+      // Factors: recent activity, votes, replies
+      const now = new Date();
+      const threadDate = new Date(thread.last_activity_at || thread.created_at);
+      const hoursSinceActivity =
+        (now.getTime() - threadDate.getTime()) / (1000 * 60 * 60);
+
+      // Trending algorithm: more weight to recent activity, votes and replies
+      // Threads less than 48 hours old with significant engagement are trending
+      const cendolValue = cendolCount?.length || 0;
+      const replyValue = replyCount?.length || 0;
+      const recencyFactor = Math.max(0, 48 - hoursSinceActivity) / 48; // 0-1 scale, 1 being very recent
+
+      // Calculate trending score - higher is better
+      const trendingScore = (cendolValue * 2 + replyValue * 3) * recencyFactor;
+
+      // Thread is trending if score exceeds threshold and is less than 48 hours old
+      const isTrending = trendingScore > 5 && hoursSinceActivity < 48;
+
       return {
         ...thread,
         vote_count: {
@@ -428,6 +492,8 @@ export async function getThreadsByCategory(
           bata: bataCount?.length || 0,
         },
         reply_count: replyCount?.length || 0,
+        is_read: readThreadIds.includes(thread.id),
+        is_trending: isTrending,
       };
     }),
   );
@@ -436,7 +502,10 @@ export async function getThreadsByCategory(
 }
 
 // Get a single thread with its replies
-export async function getThread(threadId: string): Promise<{
+export async function getThread(
+  threadId: string,
+  userId?: string,
+): Promise<{
   thread: ForumThread;
   replies: ForumReply[];
 }> {
@@ -467,12 +536,26 @@ export async function getThread(threadId: string): Promise<{
     .eq("thread_id", threadId)
     .eq("vote_type", "bata");
 
+  // Check if thread is read by user
+  let isRead = false;
+  if (userId) {
+    const { data: readHistory } = await supabase
+      .from("forum_reading_history")
+      .select("id")
+      .eq("thread_id", threadId)
+      .eq("user_id", userId)
+      .single();
+
+    isRead = !!readHistory;
+  }
+
   const threadWithVotes = {
     ...thread,
     vote_count: {
       cendol: cendolCount?.length || 0,
       bata: bataCount?.length || 0,
     },
+    is_read: isRead,
   };
 
   // Get replies
@@ -1702,6 +1785,50 @@ export async function createLevelUpNotification(
     `Selamat! Anda telah naik level dari ${oldLevel} ke ${newLevel}`,
     "level_up",
   );
+}
+
+// Mark a thread as read by a user
+export async function markThreadAsRead(
+  userId: string,
+  threadId: string,
+): Promise<void> {
+  // Check if already exists
+  const { data: existingRecord } = await supabase
+    .from("forum_reading_history")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("thread_id", threadId)
+    .single();
+
+  if (existingRecord) {
+    // Update the timestamp
+    await supabase
+      .from("forum_reading_history")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", existingRecord.id);
+  } else {
+    // Create new record
+    await supabase.from("forum_reading_history").insert({
+      user_id: userId,
+      thread_id: threadId,
+    });
+  }
+}
+
+// Get user's reading history
+export async function getUserReadingHistory(userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from("forum_reading_history")
+    .select("thread_id")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
+
+  return data?.map((item) => item.thread_id) || [];
+}
+
+// Clear user's reading history
+export async function clearReadingHistory(userId: string): Promise<void> {
+  await supabase.from("forum_reading_history").delete().eq("user_id", userId);
 }
 
 // Get user's bookmarked threads

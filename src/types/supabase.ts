@@ -298,6 +298,38 @@ export type Database = {
           },
         ]
       }
+      forum_reading_history: {
+        Row: {
+          created_at: string
+          id: string
+          thread_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          thread_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          thread_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_reading_history_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "forum_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_replies: {
         Row: {
           content: string
@@ -437,6 +469,7 @@ export type Database = {
           created_at: string | null
           has_poll: boolean | null
           id: string
+          last_activity_at: string | null
           title: string
           updated_at: string | null
           user_id: string
@@ -447,6 +480,7 @@ export type Database = {
           created_at?: string | null
           has_poll?: boolean | null
           id?: string
+          last_activity_at?: string | null
           title: string
           updated_at?: string | null
           user_id: string
@@ -457,6 +491,7 @@ export type Database = {
           created_at?: string | null
           has_poll?: boolean | null
           id?: string
+          last_activity_at?: string | null
           title?: string
           updated_at?: string | null
           user_id?: string
