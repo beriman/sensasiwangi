@@ -4,6 +4,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import TagBadge from "./TagBadge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ForumSearchFilters, ForumTag } from "@/types/forum";
 import {
   X,
@@ -12,7 +14,10 @@ import {
   TrendingUp,
   MessageSquare,
   ThumbsUp,
+  Calendar,
+  User,
 } from "lucide-react";
+import { supabase } from "../../../supabase/supabase";
 import { searchThreads, getForumTags } from "@/lib/forum";
 
 interface ForumSearchProps {
@@ -29,7 +34,15 @@ export default function ForumSearch({
     categoryId: categoryId,
     sortBy: "newest",
     timeFrame: "all",
+    dateFrom: "",
+    dateTo: "",
+    authorId: "",
   });
+  const [authorName, setAuthorName] = useState("");
+  const [authors, setAuthors] = useState<
+    Array<{ id: string; full_name: string }>
+  >([]);
+  const [showAuthorResults, setShowAuthorResults] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(false);
   const [tags, setTags] = useState<ForumTag[]>([]);
@@ -75,6 +88,45 @@ export default function ForumSearch({
     }
   };
 
+  const searchAuthors = async (query: string) => {
+    if (query.length < 2) {
+      setAuthors([]);
+      setShowAuthorResults(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, full_name")
+        .ilike("full_name", `%${query}%`)
+        .limit(5);
+
+      if (error) throw error;
+      setAuthors(data || []);
+      setShowAuthorResults(data && data.length > 0);
+    } catch (error) {
+      console.error("Error searching authors:", error);
+    }
+  };
+
+  const handleAuthorSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setAuthorName(value);
+    searchAuthors(value);
+  };
+
+  const selectAuthor = (id: string, name: string) => {
+    setFilters({ ...filters, authorId: id });
+    setAuthorName(name);
+    setShowAuthorResults(false);
+    performSearch();
+  };
+
+  const handleDateChange = (field: "dateFrom" | "dateTo", value: string) => {
+    setFilters({ ...filters, [field]: value });
+  };
+
   const handleSortChange = (value: string) => {
     const newFilters = {
       ...filters,
@@ -111,10 +163,14 @@ export default function ForumSearch({
 
   const clearFilters = () => {
     setSelectedTags([]);
+    setAuthorName("");
     setFilters({
       categoryId,
       sortBy: "newest",
       timeFrame: "all",
+      dateFrom: "",
+      dateTo: "",
+      authorId: "",
     });
     performSearch();
   };
@@ -140,11 +196,17 @@ export default function ForumSearch({
           Filter
           {(selectedTags.length > 0 ||
             filters.sortBy !== "newest" ||
-            filters.timeFrame !== "all") && (
+            filters.timeFrame !== "all" ||
+            filters.dateFrom ||
+            filters.dateTo ||
+            filters.authorId) && (
             <Badge className="ml-2 bg-purple-100 text-purple-800 hover:bg-purple-100">
               {selectedTags.length +
                 (filters.sortBy !== "newest" ? 1 : 0) +
-                (filters.timeFrame !== "all" ? 1 : 0)}
+                (filters.timeFrame !== "all" ? 1 : 0) +
+                (filters.dateFrom ? 1 : 0) +
+                (filters.dateTo ? 1 : 0) +
+                (filters.authorId ? 1 : 0)}
             </Badge>
           )}
         </Button>
@@ -223,6 +285,97 @@ export default function ForumSearch({
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
+            </div>
+
+            {/* Date Range */}
+            <div>
+              <h4 className="text-xs font-medium mb-2 text-gray-500">
+                <Calendar className="h-3 w-3 inline mr-1" /> Rentang Tanggal:
+              </h4>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="dateFrom" className="text-xs">
+                    Dari
+                  </Label>
+                  <Input
+                    id="dateFrom"
+                    type="date"
+                    value={filters.dateFrom}
+                    onChange={(e) =>
+                      handleDateChange("dateFrom", e.target.value)
+                    }
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="dateTo" className="text-xs">
+                    Sampai
+                  </Label>
+                  <Input
+                    id="dateTo"
+                    type="date"
+                    value={filters.dateTo}
+                    onChange={(e) => handleDateChange("dateTo", e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+              {filters.dateFrom && filters.dateTo && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 h-7 text-xs w-full"
+                  onClick={() => {
+                    performSearch();
+                  }}
+                >
+                  Terapkan Filter Tanggal
+                </Button>
+              )}
+            </div>
+
+            {/* Author Search */}
+            <div className="relative">
+              <h4 className="text-xs font-medium mb-2 text-gray-500">
+                <User className="h-3 w-3 inline mr-1" /> Cari berdasarkan
+                Penulis:
+              </h4>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Nama penulis..."
+                  value={authorName}
+                  onChange={handleAuthorSearch}
+                  className="h-8 text-xs"
+                />
+                {filters.authorId && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => {
+                      setFilters({ ...filters, authorId: "" });
+                      setAuthorName("");
+                      performSearch();
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+
+              {showAuthorResults && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg">
+                  {authors.map((author) => (
+                    <div
+                      key={author.id}
+                      className="px-3 py-2 text-xs hover:bg-gray-100 cursor-pointer"
+                      onClick={() => selectAuthor(author.id, author.full_name)}
+                    >
+                      {author.full_name}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Tags */}

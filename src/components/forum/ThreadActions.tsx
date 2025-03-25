@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +33,7 @@ import {
   Pin,
   Mail,
   MailX,
+  Smile,
 } from "lucide-react";
 import { useAuth } from "../../../supabase/auth";
 import { hasPrivilege } from "@/lib/reputation";
@@ -47,8 +48,15 @@ import {
   pinThread,
   unpinThread,
   toggleThreadEmailNotifications,
+  addThreadReaction,
+  getThreadReactions,
 } from "@/lib/forum";
 import { supabase } from "../../../supabase/supabase";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface ThreadActionsProps {
   threadId: string;
@@ -57,6 +65,8 @@ interface ThreadActionsProps {
   isFollowed?: boolean;
   isPinned?: boolean;
   emailNotifications?: boolean;
+  reactions?: Record<string, number>;
+  userReactions?: string[];
   onActionComplete?: (action: string) => void;
 }
 
@@ -67,6 +77,8 @@ export default function ThreadActions({
   isFollowed = false,
   isPinned = false,
   emailNotifications = false,
+  reactions = {},
+  userReactions = [],
   onActionComplete,
 }: ThreadActionsProps) {
   const { user } = useAuth();
@@ -81,6 +93,14 @@ export default function ThreadActions({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [threadReactions, setThreadReactions] =
+    useState<Record<string, number>>(reactions);
+  const [userThreadReactions, setUserThreadReactions] =
+    useState<string[]>(userReactions);
+  const [showReactionPopover, setShowReactionPopover] = useState(false);
+
+  // Common emoji reactions
+  const commonEmojis = ["👍", "👎", "❤️", "😂", "😮", "😢", "🔥", "👏"];
 
   const isAuthor = user?.id === threadAuthorId;
   const isAdmin = user?.user_metadata?.role === "admin";
@@ -326,99 +346,242 @@ export default function ThreadActions({
     }
   };
 
+  const handleReaction = async (emoji: string) => {
+    if (!user) {
+      toast({
+        title: "Login Diperlukan",
+        description: "Silakan login untuk memberikan reaksi.",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
+    try {
+      await addThreadReaction(user.id, threadId, emoji);
+
+      // Update local state for immediate feedback
+      const newUserReactions = [...userThreadReactions];
+      const emojiIndex = newUserReactions.indexOf(emoji);
+
+      if (emojiIndex >= 0) {
+        // User already reacted with this emoji, remove it
+        newUserReactions.splice(emojiIndex, 1);
+        setThreadReactions({
+          ...threadReactions,
+          [emoji]: Math.max(0, (threadReactions[emoji] || 0) - 1),
+        });
+      } else {
+        // Add new reaction
+        newUserReactions.push(emoji);
+        setThreadReactions({
+          ...threadReactions,
+          [emoji]: (threadReactions[emoji] || 0) + 1,
+        });
+      }
+
+      setUserThreadReactions(newUserReactions);
+      setShowReactionPopover(false);
+      onActionComplete?.("reaction");
+    } catch (error) {
+      console.error("Error adding reaction:", error);
+      toast({
+        title: "Error",
+        description: "Gagal menambahkan reaksi. Silakan coba lagi.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Load reactions when component mounts
+  React.useEffect(() => {
+    if (threadId && user) {
+      const loadReactions = async () => {
+        try {
+          const { reactions, userReactions } = await getThreadReactions(
+            threadId,
+            user.id,
+          );
+          setThreadReactions(reactions);
+          setUserThreadReactions(userReactions);
+        } catch (error) {
+          console.error("Error loading reactions:", error);
+        }
+      };
+
+      loadReactions();
+    }
+  }, [threadId, user]);
+
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon">
-            <MoreVertical className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onClick={handleBookmark}>
-            {bookmarked ? (
-              <>
-                <BookmarkCheck className="mr-2 h-4 w-4" />
-                <span>Hapus Bookmark</span>
-              </>
-            ) : (
-              <>
-                <Bookmark className="mr-2 h-4 w-4" />
-                <span>Bookmark Thread</span>
-              </>
+      <div className="flex items-center space-x-2">
+        {/* Reaction Button */}
+        <Popover
+          open={showReactionPopover}
+          onOpenChange={setShowReactionPopover}
+        >
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative">
+              <Smile className="h-5 w-5" />
+              {Object.keys(threadReactions).length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                  {Object.values(threadReactions).reduce(
+                    (sum, count) => sum + count,
+                    0,
+                  )}
+                </span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-2">
+            <div className="flex flex-wrap gap-2 justify-center">
+              {commonEmojis.map((emoji) => (
+                <Button
+                  key={emoji}
+                  variant={
+                    userThreadReactions.includes(emoji) ? "default" : "outline"
+                  }
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => handleReaction(emoji)}
+                >
+                  <span className="text-lg">{emoji}</span>
+                  {threadReactions[emoji] && threadReactions[emoji] > 0 && (
+                    <span className="absolute -bottom-1 -right-1 bg-muted text-muted-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                      {threadReactions[emoji]}
+                    </span>
+                  )}
+                </Button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Reaction Display */}
+        {Object.keys(threadReactions).length > 0 && (
+          <div className="flex items-center space-x-1 bg-muted rounded-full px-2 py-1">
+            {Object.entries(threadReactions)
+              .filter(([_, count]) => count > 0)
+              .slice(0, 3)
+              .map(([emoji, count]) => (
+                <Button
+                  key={emoji}
+                  variant="ghost"
+                  size="sm"
+                  className={`h-6 px-1 rounded-full ${userThreadReactions.includes(emoji) ? "bg-primary/20" : ""}`}
+                  onClick={() => handleReaction(emoji)}
+                >
+                  <span className="mr-1">{emoji}</span>
+                  <span className="text-xs">{count}</span>
+                </Button>
+              ))}
+            {Object.keys(threadReactions).filter(
+              (emoji) => threadReactions[emoji] > 0,
+            ).length > 3 && (
+              <span className="text-xs text-muted-foreground">
+                +
+                {Object.keys(threadReactions).filter(
+                  (emoji) => threadReactions[emoji] > 0,
+                ).length - 3}
+              </span>
             )}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleFollow}>
-            {followed ? (
-              <>
-                <EyeOff className="mr-2 h-4 w-4" />
-                <span>Berhenti Mengikuti</span>
-              </>
-            ) : (
-              <>
-                <Eye className="mr-2 h-4 w-4" />
-                <span>Ikuti Thread</span>
-              </>
-            )}
-          </DropdownMenuItem>
-          {followed && (
-            <DropdownMenuItem onClick={handleToggleEmailNotifications}>
-              {emailNotify ? (
+          </div>
+        )}
+
+        {/* Actions Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <MoreVertical className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={handleBookmark}>
+              {bookmarked ? (
                 <>
-                  <MailX className="mr-2 h-4 w-4" />
-                  <span>Nonaktifkan Email</span>
+                  <BookmarkCheck className="mr-2 h-4 w-4" />
+                  <span>Hapus Bookmark</span>
                 </>
               ) : (
                 <>
-                  <Mail className="mr-2 h-4 w-4" />
-                  <span>Aktifkan Email</span>
+                  <Bookmark className="mr-2 h-4 w-4" />
+                  <span>Bookmark Thread</span>
                 </>
               )}
             </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={handleShare}>
-            <LinkIcon className="mr-2 h-4 w-4" />
-            <span>Salin Link</span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => setShowReportDialog(true)}
-            className="text-amber-600"
-          >
-            <Flag className="mr-2 h-4 w-4" />
-            <span>Laporkan Thread</span>
-          </DropdownMenuItem>
-          {(isAuthor || isAdmin) && (
-            <>
-              <DropdownMenuSeparator />
-              {isAuthor && (
-                <DropdownMenuItem asChild className="text-blue-600">
-                  <Link to={`/forum/edit/${threadId}`}>
-                    <Edit className="mr-2 h-4 w-4" />
-                    <span>Edit Thread</span>
-                  </Link>
-                </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleFollow}>
+              {followed ? (
+                <>
+                  <EyeOff className="mr-2 h-4 w-4" />
+                  <span>Berhenti Mengikuti</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="mr-2 h-4 w-4" />
+                  <span>Ikuti Thread</span>
+                </>
               )}
-              <DropdownMenuItem
-                onClick={() => setShowDeleteDialog(true)}
-                className="text-red-600"
-              >
-                <Trash className="mr-2 h-4 w-4" />
-                <span>Hapus Thread</span>
+            </DropdownMenuItem>
+            {followed && (
+              <DropdownMenuItem onClick={handleToggleEmailNotifications}>
+                {emailNotify ? (
+                  <>
+                    <MailX className="mr-2 h-4 w-4" />
+                    <span>Nonaktifkan Email</span>
+                  </>
+                ) : (
+                  <>
+                    <Mail className="mr-2 h-4 w-4" />
+                    <span>Aktifkan Email</span>
+                  </>
+                )}
               </DropdownMenuItem>
-            </>
-          )}
-          {isAdmin && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handlePin}>
-                <Pin className="mr-2 h-4 w-4" />
-                <span>{pinned ? "Unpin Thread" : "Pin Thread"}</span>
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+            )}
+            <DropdownMenuItem onClick={handleShare}>
+              <LinkIcon className="mr-2 h-4 w-4" />
+              <span>Salin Link</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => setShowReportDialog(true)}
+              className="text-amber-600"
+            >
+              <Flag className="mr-2 h-4 w-4" />
+              <span>Laporkan Thread</span>
+            </DropdownMenuItem>
+            {(isAuthor || isAdmin) && (
+              <>
+                <DropdownMenuSeparator />
+                {isAuthor && (
+                  <DropdownMenuItem asChild className="text-blue-600">
+                    <Link to={`/forum/edit/${threadId}`}>
+                      <Edit className="mr-2 h-4 w-4" />
+                      <span>Edit Thread</span>
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="text-red-600"
+                >
+                  <Trash className="mr-2 h-4 w-4" />
+                  <span>Hapus Thread</span>
+                </DropdownMenuItem>
+              </>
+            )}
+            {isAdmin && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handlePin}>
+                  <Pin className="mr-2 h-4 w-4" />
+                  <span>{pinned ? "Unpin Thread" : "Pin Thread"}</span>
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       {/* Report Dialog */}
       <AlertDialog open={showReportDialog} onOpenChange={setShowReportDialog}>

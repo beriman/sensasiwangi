@@ -58,6 +58,8 @@ export interface ForumThread {
   is_bookmarked?: boolean;
   is_followed?: boolean;
   poll?: ForumPoll;
+  reactions?: Record<string, number>;
+  user_reactions?: string[];
 }
 
 export interface ForumReply {
@@ -169,9 +171,12 @@ export interface ForumSearchFilters {
   categoryId?: string;
   tags?: string[];
   userId?: string;
+  authorId?: string;
   sortBy?: "newest" | "oldest" | "most_votes" | "most_replies" | "trending";
   timeFrame?: "today" | "week" | "month" | "year" | "all";
   hasReplies?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export interface ForumStatistics {
@@ -189,4 +194,45 @@ export interface ForumStatistics {
     thread_count: number;
     reply_count: number;
   }>;
+}
+
+export interface ForumSeasonalEvent {
+  id: string;
+  name: string;
+  description: string | null;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  challenges?: ForumEventChallenge[];
+}
+
+export interface ForumEventChallenge {
+  id: string;
+  event_id: string;
+  name: string;
+  description: string | null;
+  requirement_type: "threads" | "replies" | "votes" | "exp";
+  requirement_count: number;
+  badge_id: string | null;
+  created_at: string;
+  badge?: {
+    badge_name: string;
+    badge_description: string;
+  };
+}
+
+export interface ForumUserEventParticipation {
+  id: string;
+  user_id: string;
+  event_id: string;
+  challenge_id: string;
+  progress: number;
+  completed: boolean;
+  badge_awarded: boolean;
+  created_at: string;
+  updated_at: string;
+  challenge?: ForumEventChallenge;
+  event?: ForumSeasonalEvent;
 }

@@ -43,6 +43,7 @@ const BadgesManagement = () => {
     userId: "",
     badgeName: "",
     badgeDescription: "",
+    isSeasonalBadge: false,
   });
   const { toast } = useToast();
 
@@ -102,6 +103,7 @@ const BadgesManagement = () => {
         user_id: newBadge.userId,
         badge_name: newBadge.badgeName,
         badge_description: newBadge.badgeDescription,
+        is_seasonal: newBadge.isSeasonalBadge,
       });
 
       if (error) throw error;
@@ -112,7 +114,12 @@ const BadgesManagement = () => {
       });
 
       // Reset form and close dialog
-      setNewBadge({ userId: "", badgeName: "", badgeDescription: "" });
+      setNewBadge({
+        userId: "",
+        badgeName: "",
+        badgeDescription: "",
+        isSeasonalBadge: false,
+      });
       setIsDialogOpen(false);
       fetchBadges();
     } catch (error) {
@@ -216,6 +223,26 @@ const BadgesManagement = () => {
                         }
                         placeholder="e.g. Awarded for exceptional contributions"
                       />
+                    </div>
+                    <div className="flex items-center space-x-2 mt-2">
+                      <input
+                        type="checkbox"
+                        id="isSeasonalBadge"
+                        checked={newBadge.isSeasonalBadge}
+                        onChange={(e) =>
+                          setNewBadge({
+                            ...newBadge,
+                            isSeasonalBadge: e.target.checked,
+                          })
+                        }
+                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <Label
+                        htmlFor="isSeasonalBadge"
+                        className="text-sm font-medium text-gray-700"
+                      >
+                        Seasonal Badge (for events and challenges)
+                      </Label>
                     </div>
                   </div>
                   <DialogFooter>

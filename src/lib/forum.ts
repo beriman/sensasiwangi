@@ -166,6 +166,11 @@ export async function searchThreads(
     query = query.eq("user_id", filters.userId);
   }
 
+  // Apply author filter
+  if (filters.authorId) {
+    query = query.eq("user_id", filters.authorId);
+  }
+
   // Apply time frame filter
   if (filters.timeFrame && filters.timeFrame !== "all") {
     const now = new Date();
@@ -187,6 +192,18 @@ export async function searchThreads(
     }
 
     query = query.gte("created_at", startDate.toISOString());
+  }
+
+  // Apply custom date range filter
+  if (filters.dateFrom) {
+    query = query.gte("created_at", filters.dateFrom);
+  }
+
+  if (filters.dateTo) {
+    // Add one day to include the end date fully
+    const endDate = new Date(filters.dateTo);
+    endDate.setDate(endDate.getDate() + 1);
+    query = query.lt("created_at", endDate.toISOString());
   }
 
   // Apply sorting
@@ -658,12 +675,16 @@ export async function createReply(
   threadId: string,
   userId: string,
 ): Promise<ForumReply> {
+  // Extract mentioned usernames from content
+  const mentionedUserIds = await extractMentionedUserIds(content);
+
   const { data, error } = await supabase
     .from("forum_replies")
     .insert({
       content,
       thread_id: threadId,
       user_id: userId,
+      mentioned_user_ids: mentionedUserIds.length > 0 ? mentionedUserIds : null,
     })
     .select()
     .single();
@@ -731,12 +752,16 @@ export async function updateReply(
     throw new Error("Unauthorized: You can only edit your own replies");
   }
 
+  // Extract mentioned usernames from content
+  const mentionedUserIds = await extractMentionedUserIds(content);
+
   // Update reply
   const { data, error } = await supabase
     .from("forum_replies")
     .update({
       content,
       updated_at: new Date().toISOString(),
+      mentioned_user_ids: mentionedUserIds.length > 0 ? mentionedUserIds : null,
     })
     .eq("id", replyId)
     .select()
@@ -763,6 +788,27 @@ export async function updateReply(
   );
 
   return data;
+}
+
+// Extract mentioned user IDs from content
+async function extractMentionedUserIds(content: string): Promise<string[]> {
+  // Extract mentions from content (format: <span class="mention" data-mention="username">@username</span>)
+  const mentionRegex =
+    /<span class="mention" data-mention="([^"]+)">@([^<]+)<\/span>/g;
+  const mentions = Array.from(content.matchAll(mentionRegex));
+
+  if (mentions.length === 0) return [];
+
+  // Get unique usernames
+  const usernames = [...new Set(mentions.map((match) => match[1]))];
+
+  // Find user IDs by usernames
+  const { data } = await supabase
+    .from("users")
+    .select("id, username")
+    .in("username", usernames);
+
+  return (data || []).map((user) => user.id);
 }
 
 // Delete a reply
@@ -1024,9 +1070,9 @@ async function updateUserExp(
 
   // Calculate new level client-side (though the trigger will handle this server-side)
   let newLevel = 1;
-  for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
-    if (newExp >= LEVEL_THRESHOLDS[i].exp) {
-      newLevel = LEVEL_THRESHOLDS[i].level;
+  for (let i = REPUTATION_LEVELS.length - 1; i >= 0; i--) {
+    if (newExp >= REPUTATION_LEVELS[i].exp) {
+      newLevel = REPUTATION_LEVELS[i].level;
       break;
     }
   }
@@ -1067,6 +1113,75 @@ export async function unbookmarkThread(
   });
 
   if (error) throw error;
+}
+
+// Add a reaction to a thread
+export async function addThreadReaction(
+  userId: string,
+  threadId: string,
+  reaction: string,
+): Promise<void> {
+  // Check if user already reacted with this emoji
+  const { data: existingReaction } = await supabase
+    .from("forum_reactions")
+    .select("*")
+    .match({
+      user_id: userId,
+      thread_id: threadId,
+      reaction: reaction,
+    })
+    .single();
+
+  // If reaction exists, remove it (toggle behavior)
+  if (existingReaction) {
+    const { error } = await supabase.from("forum_reactions").delete().match({
+      user_id: userId,
+      thread_id: threadId,
+      reaction: reaction,
+    });
+
+    if (error) throw error;
+    return;
+  }
+
+  // Otherwise, add the reaction
+  const { error } = await supabase.from("forum_reactions").insert({
+    user_id: userId,
+    thread_id: threadId,
+    reaction: reaction,
+  });
+
+  if (error) throw error;
+}
+
+// Get reactions for a thread
+export async function getThreadReactions(
+  threadId: string,
+  userId?: string,
+): Promise<{ reactions: Record<string, number>; userReactions: string[] }> {
+  // Get all reactions for this thread
+  const { data, error } = await supabase
+    .from("forum_reactions")
+    .select("reaction, user_id")
+    .eq("thread_id", threadId);
+
+  if (error) throw error;
+
+  // Count reactions by type
+  const reactions: Record<string, number> = {};
+  const userReactions: string[] = [];
+
+  (data || []).forEach((item) => {
+    // Count total reactions
+    reactions[item.reaction] = (reactions[item.reaction] || 0) + 1;
+
+    // Track user's reactions
+    if (userId && item.user_id === userId) {
+      userReactions.push(item.reaction);
+    }
+  });
+
+  return { reactions, userReactions };
 }
 
 // Follow a thread to receive notifications
@@ -1274,7 +1389,7 @@ export async function createPoll(
   options: string[],
   isMultipleChoice: boolean = false,
   expiresInDays?: number,
-): Promise<{ poll: ForumPoll }> {
+): Promise<{ poll: any }> {
   // Validate inputs
   if (!question.trim()) {
     throw new Error("Poll question cannot be empty");
@@ -1491,14 +1606,15 @@ export async function createMentionNotification(
   threadId: string,
   replyId?: string,
 ): Promise<void> {
-  // Extract mentions from content (format: @username)
-  const mentionRegex = /@([a-zA-Z0-9_]+)/g;
-  const mentions = content.match(mentionRegex) || [];
+  // Extract mentions from content (format: <span class="mention" data-mention="username">@username</span>)
+  const mentionRegex =
+    /<span class="mention" data-mention="([^"]+)">@([^<]+)<\/span>/g;
+  const mentions = Array.from(content.matchAll(mentionRegex));
 
   if (mentions.length === 0) return;
 
-  // Get unique usernames without the @ symbol
-  const usernames = [...new Set(mentions.map((m) => m.substring(1)))];
+  // Get unique usernames
+  const usernames = [...new Set(mentions.map((match) => match[1]))];
 
   // Find users by username
   const { data: users } = await supabase
@@ -1710,4 +1826,384 @@ export async function getLeaderboard(
       badges: user.badges?.map((b: any) => b.badge) || [],
     };
   });
+}
+
+// SEASONAL EVENTS FUNCTIONS
+
+// Get all seasonal events
+export async function getSeasonalEvents(
+  includeInactive = false,
+): Promise<ForumSeasonalEvent[]> {
+  let query = supabase
+    .from("forum_seasonal_events")
+    .select("*")
+    .order("start_date", { ascending: false });
+
+  if (!includeInactive) {
+    query = query.eq("is_active", true);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+  return data || [];
+}
+
+// Get a single seasonal event with its challenges
+export async function getSeasonalEvent(
+  eventId: string,
+): Promise<ForumSeasonalEvent | null> {
+  const { data: event, error: eventError } = await supabase
+    .from("forum_seasonal_events")
+    .select("*")
+    .eq("id", eventId)
+    .single();
+
+  if (eventError) {
+    if (eventError.code === "PGRST116") return null;
+    throw eventError;
+  }
+
+  // Get challenges for this event
+  const { data: challenges, error: challengesError } = await supabase
+    .from("forum_event_challenges")
+    .select("*, badge:badge_id(badge_name, badge_description)")
+    .eq("event_id", eventId);
+
+  if (challengesError) throw challengesError;
+
+  return {
+    ...event,
+    challenges: challenges || [],
+  };
+}
+
+// Create a new seasonal event
+export async function createSeasonalEvent(eventData: {
+  name: string;
+  description?: string;
+  startDate: Date;
+  endDate: Date;
+  isActive?: boolean;
+}): Promise<ForumSeasonalEvent> {
+  const { data, error } = await supabase
+    .from("forum_seasonal_events")
+    .insert({
+      name: eventData.name,
+      description: eventData.description || null,
+      start_date: eventData.startDate.toISOString(),
+      end_date: eventData.endDate.toISOString(),
+      is_active: eventData.isActive !== undefined ? eventData.isActive : true,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Update a seasonal event
+export async function updateSeasonalEvent(
+  eventId: string,
+  eventData: {
+    name?: string;
+    description?: string | null;
+    startDate?: Date;
+    endDate?: Date;
+    isActive?: boolean;
+  },
+): Promise<ForumSeasonalEvent> {
+  const updates: any = {};
+  if (eventData.name !== undefined) updates.name = eventData.name;
+  if (eventData.description !== undefined)
+    updates.description = eventData.description;
+  if (eventData.startDate !== undefined)
+    updates.start_date = eventData.startDate.toISOString();
+  if (eventData.endDate !== undefined)
+    updates.end_date = eventData.endDate.toISOString();
+  if (eventData.isActive !== undefined) updates.is_active = eventData.isActive;
+  updates.updated_at = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from("forum_seasonal_events")
+    .update(updates)
+    .eq("id", eventId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Delete a seasonal event
+export async function deleteSeasonalEvent(eventId: string): Promise<void> {
+  const { error } = await supabase
+    .from("forum_seasonal_events")
+    .delete()
+    .eq("id", eventId);
+
+  if (error) throw error;
+}
+
+// Create a challenge for a seasonal event
+export async function createEventChallenge(challengeData: {
+  eventId: string;
+  name: string;
+  description?: string;
+  requirementType: "threads" | "replies" | "votes" | "exp";
+  requirementCount: number;
+  badgeId?: string;
+}): Promise<ForumEventChallenge> {
+  const { data, error } = await supabase
+    .from("forum_event_challenges")
+    .insert({
+      event_id: challengeData.eventId,
+      name: challengeData.name,
+      description: challengeData.description || null,
+      requirement_type: challengeData.requirementType,
+      requirement_count: challengeData.requirementCount,
+      badge_id: challengeData.badgeId || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Update an event challenge
+export async function updateEventChallenge(
+  challengeId: string,
+  challengeData: {
+    name?: string;
+    description?: string | null;
+    requirementType?: "threads" | "replies" | "votes" | "exp";
+    requirementCount?: number;
+    badgeId?: string | null;
+  },
+): Promise<ForumEventChallenge> {
+  const updates: any = {};
+  if (challengeData.name !== undefined) updates.name = challengeData.name;
+  if (challengeData.description !== undefined)
+    updates.description = challengeData.description;
+  if (challengeData.requirementType !== undefined)
+    updates.requirement_type = challengeData.requirementType;
+  if (challengeData.requirementCount !== undefined)
+    updates.requirement_count = challengeData.requirementCount;
+  if (challengeData.badgeId !== undefined)
+    updates.badge_id = challengeData.badgeId;
+
+  const { data, error } = await supabase
+    .from("forum_event_challenges")
+    .update(updates)
+    .eq("id", challengeId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Delete an event challenge
+export async function deleteEventChallenge(challengeId: string): Promise<void> {
+  const { error } = await supabase
+    .from("forum_event_challenges")
+    .delete()
+    .eq("id", challengeId);
+
+  if (error) throw error;
+}
+
+// Get active events for a user with their progress
+export async function getUserEventProgress(userId: string): Promise<any[]> {
+  // Get all active events
+  const now = new Date().toISOString();
+  const { data: activeEvents, error: eventsError } = await supabase
+    .from("forum_seasonal_events")
+    .select("*")
+    .eq("is_active", true)
+    .lte("start_date", now)
+    .gte("end_date", now);
+
+  if (eventsError) throw eventsError;
+
+  if (!activeEvents || activeEvents.length === 0) return [];
+
+  // Get all challenges for these events
+  const eventIds = activeEvents.map((event) => event.id);
+  const { data: challenges, error: challengesError } = await supabase
+    .from("forum_event_challenges")
+    .select("*, badge:badge_id(badge_name, badge_description)")
+    .in("event_id", eventIds);
+
+  if (challengesError) throw challengesError;
+
+  // Get user's participation records
+  const { data: participation, error: participationError } = await supabase
+    .from("forum_user_event_participation")
+    .select("*")
+    .eq("user_id", userId)
+    .in("event_id", eventIds);
+
+  if (participationError) throw participationError;
+
+  // Combine the data
+  return activeEvents.map((event) => {
+    const eventChallenges =
+      challenges?.filter((c) => c.event_id === event.id) || [];
+
+    const challengesWithProgress = eventChallenges.map((challenge) => {
+      const userProgress = participation?.find(
+        (p) => p.challenge_id === challenge.id && p.user_id === userId,
+      ) || {
+        progress: 0,
+        completed: false,
+        badge_awarded: false,
+      };
+
+      return {
+        ...challenge,
+        userProgress: userProgress.progress,
+        completed: userProgress.completed,
+        badgeAwarded: userProgress.badge_awarded,
+      };
+    });
+
+    return {
+      ...event,
+      challenges: challengesWithProgress,
+    };
+  });
+}
+
+// Update user's progress in an event challenge
+export async function updateUserChallengeProgress(
+  userId: string,
+  challengeId: string,
+  progress: number,
+): Promise<{ completed: boolean; badgeAwarded: boolean }> {
+  // Get the challenge details
+  const { data: challenge, error: challengeError } = await supabase
+    .from("forum_event_challenges")
+    .select("*")
+    .eq("id", challengeId)
+    .single();
+
+  if (challengeError) throw challengeError;
+
+  // Check if the user already has a participation record
+  const { data: existingParticipation, error: participationError } =
+    await supabase
+      .from("forum_user_event_participation")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("challenge_id", challengeId)
+      .single();
+
+  const completed = progress >= challenge.requirement_count;
+  let badgeAwarded = false;
+
+  if (participationError && participationError.code !== "PGRST116") {
+    throw participationError;
+  }
+
+  // If no existing record, create one
+  if (!existingParticipation) {
+    await supabase.from("forum_user_event_participation").insert({
+      user_id: userId,
+      event_id: challenge.event_id,
+      challenge_id: challengeId,
+      progress,
+      completed,
+      badge_awarded: false,
+    });
+  } else {
+    // Update existing record
+    await supabase
+      .from("forum_user_event_participation")
+      .update({
+        progress,
+        completed,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existingParticipation.id);
+  }
+
+  // If challenge is completed and has a badge, award it if not already awarded
+  if (
+    completed &&
+    challenge.badge_id &&
+    (!existingParticipation || !existingParticipation.badge_awarded)
+  ) {
+    // Get badge details
+    const { data: badge } = await supabase
+      .from("user_badges")
+      .select("*")
+      .eq("id", challenge.badge_id)
+      .single();
+
+    if (badge) {
+      // Award badge to user
+      const { error: badgeError } = await supabase.from("user_badges").insert({
+        user_id: userId,
+        badge_name: badge.badge_name,
+        badge_description: badge.badge_description,
+      });
+
+      if (!badgeError) {
+        // Update participation record to mark badge as awarded
+        await supabase
+          .from("forum_user_event_participation")
+          .update({ badge_awarded: true })
+          .eq("user_id", userId)
+          .eq("challenge_id", challengeId);
+
+        badgeAwarded = true;
+
+        // Create notification for badge award
+        await createNotification(
+          userId,
+          `You earned the "${badge.badge_name}" badge for completing the "${challenge.name}" challenge!`,
+          "badge_award",
+        );
+      }
+    }
+  }
+
+  return { completed, badgeAwarded };
+}
+
+// Get all active seasonal events with their challenges
+export async function getActiveSeasonalEvents(): Promise<ForumSeasonalEvent[]> {
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("forum_seasonal_events")
+    .select("*")
+    .eq("is_active", true)
+    .lte("start_date", now)
+    .gte("end_date", now)
+    .order("end_date", { ascending: true });
+
+  if (error) throw error;
+
+  if (!data || data.length === 0) return [];
+
+  // Get challenges for each event
+  const eventsWithChallenges = await Promise.all(
+    data.map(async (event) => {
+      const { data: challenges, error: challengesError } = await supabase
+        .from("forum_event_challenges")
+        .select("*, badge:badge_id(badge_name, badge_description)")
+        .eq("event_id", event.id);
+
+      if (challengesError) throw challengesError;
+
+      return {
+        ...event,
+        challenges: challenges || [],
+      };
+    }),
+  );
+
+  return eventsWithChallenges;
 }

@@ -29,6 +29,7 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AtSign,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,6 +38,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import DOMPurify from "dompurify";
+import { supabase } from "../../../supabase/supabase";
 
 interface RichTextEditorProps {
   content: string;
@@ -44,6 +46,13 @@ interface RichTextEditorProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+}
+
+interface UserSuggestion {
+  id: string;
+  username: string;
+  full_name?: string;
+  avatar_url?: string;
 }
 
 export default function RichTextEditor({
@@ -57,6 +66,9 @@ export default function RichTextEditor({
   const [imageUrl, setImageUrl] = useState("");
   const [isLinkPopoverOpen, setIsLinkPopoverOpen] = useState(false);
   const [isImagePopoverOpen, setIsImagePopoverOpen] = useState(false);
+  const [isMentionPopoverOpen, setIsMentionPopoverOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [userSuggestions, setUserSuggestions] = useState<UserSuggestion[]>([]);
 
   const editor = useEditor({
     extensions: [
@@ -116,6 +128,49 @@ export default function RichTextEditor({
     editor?.chain().focus().setImage({ src: imageUrl }).run();
     setImageUrl("");
     setIsImagePopoverOpen(false);
+  };
+
+  const searchUsers = async (query: string) => {
+    if (!query || query.length < 2) {
+      setUserSuggestions([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, username, full_name, avatar_url")
+        .ilike("username", `%${query}%`)
+        .limit(5);
+
+      if (error) throw error;
+      setUserSuggestions(data || []);
+    } catch (error) {
+      console.error("Error searching users:", error);
+      setUserSuggestions([]);
+    }
+  };
+
+  const insertMention = (username: string) => {
+    if (!editor) return;
+
+    // Insert the mention as a span with a data attribute
+    editor
+      .chain()
+      .focus()
+      .insertContent(
+        `<span class="mention" data-mention="${username}">@${username}</span> `,
+      )
+      .run();
+
+    setIsMentionPopoverOpen(false);
+    setMentionQuery("");
+  };
+
+  const handleMentionSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setMentionQuery(query);
+    searchUsers(query);
   };
 
   if (!editor) {
@@ -354,6 +409,85 @@ export default function RichTextEditor({
                   </Button>
                   <Button size="sm" onClick={addImage}>
                     Add Image
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Mention User Popover */}
+          <Popover
+            open={isMentionPopoverOpen}
+            onOpenChange={setIsMentionPopoverOpen}
+          >
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="px-2"
+                      disabled={disabled}
+                    >
+                      <AtSign className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Mention User</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <PopoverContent className="w-80 p-4">
+              <div className="space-y-2">
+                <h4 className="font-medium">Mention User</h4>
+                <Input
+                  type="text"
+                  placeholder="Search username..."
+                  value={mentionQuery}
+                  onChange={handleMentionSearch}
+                />
+                {userSuggestions.length > 0 && (
+                  <div className="mt-2 max-h-40 overflow-y-auto border rounded-md">
+                    {userSuggestions.map((user) => (
+                      <div
+                        key={user.id}
+                        className="p-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2"
+                        onClick={() => insertMention(user.username)}
+                      >
+                        <div className="w-6 h-6 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
+                          {user.avatar_url ? (
+                            <img
+                              src={user.avatar_url}
+                              alt={user.username}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs font-medium text-gray-500">
+                              {user.username[0].toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">
+                            @{user.username}
+                          </div>
+                          {user.full_name && (
+                            <div className="text-xs text-gray-500">
+                              {user.full_name}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsMentionPopoverOpen(false)}
+                  >
+                    Cancel
                   </Button>
                 </div>
               </div>

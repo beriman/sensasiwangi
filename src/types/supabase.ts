@@ -66,6 +66,54 @@ export type Database = {
         }
         Relationships: []
       }
+      forum_event_challenges: {
+        Row: {
+          badge_id: string | null
+          created_at: string | null
+          description: string | null
+          event_id: string
+          id: string
+          name: string
+          requirement_count: number
+          requirement_type: string
+        }
+        Insert: {
+          badge_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          event_id: string
+          id?: string
+          name: string
+          requirement_count: number
+          requirement_type: string
+        }
+        Update: {
+          badge_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          event_id?: string
+          id?: string
+          name?: string
+          requirement_count?: number
+          requirement_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_event_challenges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "user_badges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forum_event_challenges_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "forum_seasonal_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_follows: {
         Row: {
           created_at: string | null
@@ -208,6 +256,48 @@ export type Database = {
           },
         ]
       }
+      forum_reactions: {
+        Row: {
+          created_at: string | null
+          id: string
+          reaction: string
+          reply_id: string | null
+          thread_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          reaction: string
+          reply_id?: string | null
+          thread_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          reaction?: string
+          reply_id?: string | null
+          thread_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_reactions_reply_id_fkey"
+            columns: ["reply_id"]
+            isOneToOne: false
+            referencedRelation: "forum_replies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forum_reactions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "forum_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_replies: {
         Row: {
           content: string
@@ -307,6 +397,39 @@ export type Database = {
           },
         ]
       }
+      forum_seasonal_events: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          end_date: string
+          id: string
+          is_active: boolean | null
+          name: string
+          start_date: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          end_date: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          start_date: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          end_date?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          start_date?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       forum_threads: {
         Row: {
           category_id: string
@@ -384,6 +507,64 @@ export type Database = {
           },
           {
             foreignKeyName: "forum_user_badges_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forum_user_event_participation: {
+        Row: {
+          badge_awarded: boolean | null
+          challenge_id: string
+          completed: boolean | null
+          created_at: string | null
+          event_id: string
+          id: string
+          progress: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          badge_awarded?: boolean | null
+          challenge_id: string
+          completed?: boolean | null
+          created_at?: string | null
+          event_id: string
+          id?: string
+          progress?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          badge_awarded?: boolean | null
+          challenge_id?: string
+          completed?: boolean | null
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          progress?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_user_event_participation_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "forum_event_challenges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forum_user_event_participation_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "forum_seasonal_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forum_user_event_participation_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
