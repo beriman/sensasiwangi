@@ -66,6 +66,7 @@ export async function createProduct(
   description: string,
   price: number,
   imageUrl?: string,
+  additionalData?: any,
 ): Promise<MarketplaceProduct> {
   const { data, error } = await supabase
     .from("marketplace_products")
@@ -76,6 +77,7 @@ export async function createProduct(
       price,
       image_url: imageUrl || null,
       status: "active",
+      ...(additionalData || {}),
     })
     .select()
     .single();

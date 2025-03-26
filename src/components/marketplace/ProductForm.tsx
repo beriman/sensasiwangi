@@ -12,12 +12,16 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAuth } from "../../../supabase/auth";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "../../../supabase/supabase";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-interface ProductFormProps {
-  mode: "create" | "edit";
-}
-
-export default function ProductForm({ mode }: ProductFormProps) {
+export default function ProductForm({ mode }: { mode: "create" | "edit" }) {
   const { productId } = useParams<{ productId: string }>();
   const [loading, setLoading] = useState(mode === "edit");
   const [submitting, setSubmitting] = useState(false);
@@ -29,6 +33,13 @@ export default function ProductForm({ mode }: ProductFormProps) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [category, setCategory] = useState("parfum");
+  const [stock, setStock] = useState("100");
+  const [weight, setWeight] = useState("100");
+  const [condition, setCondition] = useState("new");
+  const [enableSambatan, setEnableSambatan] = useState(false);
+  const [minParticipants, setMinParticipants] = useState("2");
+  const [maxParticipants, setMaxParticipants] = useState("10");
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -82,6 +93,14 @@ export default function ProductForm({ mode }: ProductFormProps) {
           if (data.image_url) {
             setImagePreview(data.image_url);
           }
+          // Set default values for new fields
+          setCategory(data.category || "parfum");
+          setStock(data.stock?.toString() || "100");
+          setWeight(data.weight?.toString() || "100");
+          setCondition(data.condition || "new");
+          setEnableSambatan(data.is_sambatan || false);
+          setMinParticipants(data.min_participants?.toString() || "2");
+          setMaxParticipants(data.max_participants?.toString() || "10");
         } catch (error) {
           console.error("Error fetching product:", error);
           toast({
@@ -207,6 +226,21 @@ export default function ProductForm({ mode }: ProductFormProps) {
         finalImageUrl = await uploadImage();
       }
 
+      // Prepare product data with new fields
+      const productData = {
+        name,
+        description,
+        price: Number(price),
+        image_url: finalImageUrl,
+        category,
+        stock: Number(stock),
+        weight: Number(weight),
+        condition,
+        is_sambatan: enableSambatan,
+        min_participants: enableSambatan ? Number(minParticipants) : null,
+        max_participants: enableSambatan ? Number(maxParticipants) : null,
+      };
+
       if (mode === "create") {
         // Create new product
         await createProduct(
@@ -215,6 +249,7 @@ export default function ProductForm({ mode }: ProductFormProps) {
           description,
           Number(price),
           finalImageUrl || undefined,
+          productData,
         );
 
         toast({
@@ -223,12 +258,7 @@ export default function ProductForm({ mode }: ProductFormProps) {
         });
       } else if (mode === "edit" && productId) {
         // Update existing product
-        await updateProduct(productId, {
-          name,
-          description,
-          price: Number(price),
-          image_url: finalImageUrl,
-        });
+        await updateProduct(productId, productData);
 
         toast({
           title: "Berhasil",
@@ -296,6 +326,113 @@ export default function ProductForm({ mode }: ProductFormProps) {
               />
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label
+                  htmlFor="price"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Harga (Rp)*
+                </Label>
+                <Input
+                  id="price"
+                  type="number"
+                  placeholder="Masukkan harga"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  disabled={submitting}
+                  className="w-full"
+                  min="0"
+                  step="1000"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label
+                  htmlFor="category"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Kategori*
+                </Label>
+                <Select
+                  value={category}
+                  onValueChange={setCategory}
+                  disabled={submitting}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih kategori" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="parfum">Parfum Jadi</SelectItem>
+                    <SelectItem value="bahan">Bahan Baku</SelectItem>
+                    <SelectItem value="alat">Alat Perfumery</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label
+                  htmlFor="stock"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Stok*
+                </Label>
+                <Input
+                  id="stock"
+                  type="number"
+                  placeholder="Jumlah stok"
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value)}
+                  disabled={submitting}
+                  className="w-full"
+                  min="1"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label
+                  htmlFor="weight"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Berat (gram)*
+                </Label>
+                <Input
+                  id="weight"
+                  type="number"
+                  placeholder="Berat produk"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  disabled={submitting}
+                  className="w-full"
+                  min="1"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label
+                  htmlFor="condition"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Kondisi*
+                </Label>
+                <Select
+                  value={condition}
+                  onValueChange={setCondition}
+                  disabled={submitting}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih kondisi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">Baru</SelectItem>
+                    <SelectItem value="used">Bekas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label
                 htmlFor="description"
@@ -310,26 +447,6 @@ export default function ProductForm({ mode }: ProductFormProps) {
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={submitting}
                 className="min-h-[120px] w-full"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label
-                htmlFor="price"
-                className="text-sm font-medium text-gray-700"
-              >
-                Harga (Rp)*
-              </Label>
-              <Input
-                id="price"
-                type="number"
-                placeholder="Masukkan harga"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                disabled={submitting}
-                className="w-full"
-                min="0"
-                step="1000"
               />
             </div>
 
@@ -395,6 +512,73 @@ export default function ProductForm({ mode }: ProductFormProps) {
                 </div>
               )}
             </div>
+
+            {/* Sambatan Options */}
+            <div className="border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div>
+                  <Label className="text-base">
+                    Aktifkan Sambatan (Patungan)
+                  </Label>
+                  <p className="text-sm text-gray-500">
+                    Izinkan pembeli untuk membeli produk ini secara patungan
+                  </p>
+                </div>
+                <Switch
+                  checked={enableSambatan}
+                  onCheckedChange={setEnableSambatan}
+                  disabled={submitting}
+                />
+              </div>
+            </div>
+
+            {enableSambatan && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="minParticipants"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    Minimal Peserta*
+                  </Label>
+                  <Input
+                    id="minParticipants"
+                    type="number"
+                    placeholder="Minimal peserta"
+                    value={minParticipants}
+                    onChange={(e) => setMinParticipants(e.target.value)}
+                    disabled={submitting}
+                    className="w-full"
+                    min="2"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Minimal jumlah peserta untuk sambatan
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="maxParticipants"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    Maksimal Peserta*
+                  </Label>
+                  <Input
+                    id="maxParticipants"
+                    type="number"
+                    placeholder="Maksimal peserta"
+                    value={maxParticipants}
+                    onChange={(e) => setMaxParticipants(e.target.value)}
+                    disabled={submitting}
+                    className="w-full"
+                    min="2"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Maksimal jumlah peserta untuk sambatan
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="pt-4">
               <Button
