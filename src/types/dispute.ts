@@ -47,6 +47,7 @@ export interface MarketplaceRefund {
   amount: number;
   status: "pending" | "processing" | "completed" | "rejected";
   refund_reason: string;
+  admin_notes: string | null;
   admin_id: string | null;
   created_at: string;
   updated_at: string;

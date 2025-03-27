@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Users, Star, Heart } from "lucide-react";
+import { ShoppingBag, Users, Star, Heart, Loader2 } from "lucide-react";
 import { useAuth } from "../../../supabase/auth";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -12,31 +12,47 @@ import {
   isProductWishlisted,
 } from "@/lib/marketplace";
 import { MarketplaceProduct } from "@/types/marketplace";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ProductCardProps {
   product: MarketplaceProduct;
   isSambatan?: boolean;
+  onWishlistChange?: (productId: string, isWishlisted: boolean) => void;
 }
 
 export default function ProductCard({
   product,
   isSambatan = false,
+  onWishlistChange,
 }: ProductCardProps) {
   const [isWishlisted, setIsWishlisted] = useState(
     product.is_wishlisted || false,
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
     const checkWishlistStatus = async () => {
-      if (!user) return;
+      if (!user) {
+        setIsCheckingStatus(false);
+        return;
+      }
+
+      setIsCheckingStatus(true);
       try {
         const wishlisted = await isProductWishlisted(product.id);
         setIsWishlisted(wishlisted);
       } catch (error) {
         console.error("Error checking wishlist status:", error);
+      } finally {
+        setIsCheckingStatus(false);
       }
     };
 
@@ -71,7 +87,13 @@ export default function ProductCard({
           description: "Produk ditambahkan ke wishlist.",
         });
       }
-      setIsWishlisted(!isWishlisted);
+      const newWishlistState = !isWishlisted;
+      setIsWishlisted(newWishlistState);
+
+      // Notify parent component if callback exists
+      if (onWishlistChange) {
+        onWishlistChange(product.id, newWishlistState);
+      }
     } catch (error) {
       console.error("Error toggling wishlist:", error);
       toast({
@@ -83,12 +105,45 @@ export default function ProductCard({
       setIsLoading(false);
     }
   };
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
       currency: "IDR",
       minimumFractionDigits: 0,
     }).format(price);
+  };
+
+  const renderWishlistButton = () => {
+    const tooltipText = isWishlisted
+      ? "Hapus dari wishlist"
+      : "Tambah ke wishlist";
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={handleWishlistToggle}
+              disabled={isLoading || isCheckingStatus}
+              className={`p-1.5 rounded-full bg-white shadow-sm border border-gray-100 transition-all duration-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 ${isWishlisted ? "opacity-100" : "opacity-0 group-hover:opacity-100"} ${isLoading ? "animate-pulse" : ""}`}
+              aria-label={tooltipText}
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 text-purple-500 animate-spin" />
+              ) : (
+                <Heart
+                  className={`h-4 w-4 ${isWishlisted ? "fill-red-500 text-red-500" : "text-gray-400"} ${isWishlisted ? "scale-110" : "scale-100"} transition-transform duration-200`}
+                />
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>{tooltipText}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
   };
 
   return (
@@ -98,6 +153,17 @@ export default function ProductCard({
           <div className="absolute top-0 left-0 w-full z-10 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xs py-1 px-2 flex items-center justify-center">
             <Users className="h-3 w-3 mr-1" />
             Sambatan
+          </div>
+        )}
+        {isWishlisted && (
+          <div className="absolute top-2 right-2 z-10">
+            <Badge
+              variant="secondary"
+              className="bg-red-50 text-red-500 border border-red-100"
+            >
+              <Heart className="h-3 w-3 mr-1 fill-red-500" />
+              Wishlist
+            </Badge>
           </div>
         )}
         <div
@@ -123,18 +189,7 @@ export default function ProductCard({
             <p className="font-bold text-base text-red-600">
               {formatPrice(product.price)}
             </p>
-            <button
-              onClick={handleWishlistToggle}
-              disabled={isLoading}
-              className="p-1.5 rounded-full bg-white shadow-sm border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50"
-              aria-label={
-                isWishlisted ? "Hapus dari wishlist" : "Tambah ke wishlist"
-              }
-            >
-              <Heart
-                className={`h-4 w-4 ${isWishlisted ? "fill-red-500 text-red-500" : "text-gray-400"}`}
-              />
-            </button>
+            {renderWishlistButton()}
           </div>
           <div className="flex items-center mt-1">
             <div className="flex items-center text-yellow-500">

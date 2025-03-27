@@ -6,7 +6,10 @@ export type PaymentMethod =
   | "GOPAY"
   | "DANA"
   | "LINKAJA"
-  | "SHOPEEPAY";
+  | "SHOPEEPAY"
+  | "BANK_TRANSFER"
+  | "VIRTUAL_ACCOUNT"
+  | "CREDIT_CARD";
 
 export interface QRPaymentResponse {
   invoiceNumber: string;

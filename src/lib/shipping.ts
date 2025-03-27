@@ -438,6 +438,9 @@ export async function getOptimalSambatanShipping(
   totalCost: number;
   providerCode: string;
   participantRates: { [participantId: string]: ShippingRate };
+  individualTotalCost: number;
+  savings: number;
+  individualRates: { [participantId: string]: ShippingRate };
 }> {
   try {
     const allRates = await calculateSambatanShippingCost(
@@ -454,8 +457,20 @@ export async function getOptimalSambatanShipping(
       };
     } = {};
 
+    // Track the cheapest individual rates for each participant
+    const cheapestIndividualRates: { [participantId: string]: ShippingRate } =
+      {};
+    let individualTotalCost = 0;
+
     // For each participant
     for (const [participantId, rates] of Object.entries(allRates)) {
+      if (rates.length === 0) continue;
+
+      // Find cheapest individual rate for this participant
+      const cheapestRate = [...rates].sort((a, b) => a.price - b.price)[0];
+      cheapestIndividualRates[participantId] = cheapestRate;
+      individualTotalCost += cheapestRate.price;
+
       // For each shipping option available to this participant
       for (const rate of rates) {
         const providerCode = rate.provider?.code || "unknown";
@@ -478,17 +493,30 @@ export async function getOptimalSambatanShipping(
     let bestRates: { [participantId: string]: ShippingRate } = {};
 
     for (const [providerCode, data] of Object.entries(providerRates)) {
-      if (data.totalCost < lowestCost) {
+      // Only consider providers that have rates for all participants
+      const participantCount = Object.keys(allRates).length;
+      const coveredParticipantCount = Object.keys(data.participantRates).length;
+
+      if (
+        coveredParticipantCount === participantCount &&
+        data.totalCost < lowestCost
+      ) {
         lowestCost = data.totalCost;
         bestProvider = providerCode;
         bestRates = data.participantRates;
       }
     }
 
+    // Calculate savings compared to individual best rates
+    const savings = individualTotalCost - lowestCost;
+
     return {
       totalCost: lowestCost,
       providerCode: bestProvider,
       participantRates: bestRates,
+      individualTotalCost,
+      savings,
+      individualRates: cheapestIndividualRates,
     };
   } catch (error) {
     console.error("Error finding optimal sambatan shipping:", error);
@@ -496,6 +524,9 @@ export async function getOptimalSambatanShipping(
       totalCost: 0,
       providerCode: "",
       participantRates: {},
+      individualTotalCost: 0,
+      savings: 0,
+      individualRates: {},
     };
   }
 }

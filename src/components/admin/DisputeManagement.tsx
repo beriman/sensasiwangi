@@ -197,7 +197,7 @@ const DisputeManagement = () => {
 
     try {
       setProcessingRefund(true);
-      await createRefund(
+      const refund = await createRefund(
         selectedDispute.transaction_id,
         parseFloat(refundAmount),
         refundReason,
@@ -208,6 +208,15 @@ const DisputeManagement = () => {
         title: "Refund processed",
         description: "Refund has been created successfully.",
       });
+
+      // Update dispute status to show it's been processed with refund
+      if (selectedDispute.status === "resolved_buyer") {
+        await updateDisputeStatus(
+          selectedDispute.id,
+          "resolved_buyer",
+          `Refund processed: ${refundAmount} - ${refundReason}. Refund ID: ${refund.id}`,
+        );
+      }
 
       setIsDetailOpen(false);
     } catch (error) {
@@ -591,12 +600,48 @@ const DisputeManagement = () => {
                           )
                         </p>
                       </div>
-                      <div>
+                      <div className="mb-3">
                         <p className="text-gray-500 text-sm">Reason</p>
                         <p className="mt-1 text-gray-900">
                           {selectedDispute.reason}
                         </p>
                       </div>
+
+                      {/* Sambatan Shipping Information (if applicable) */}
+                      {selectedDispute.transaction?.sambatan_id && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <p className="text-gray-500 text-sm font-medium">
+                            Sambatan Order
+                          </p>
+                          <div className="flex items-center mt-1">
+                            <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-200">
+                              Group Purchase
+                            </Badge>
+                          </div>
+
+                          <p className="text-gray-500 text-sm mt-2">
+                            Shipping Optimization
+                          </p>
+                          <p className="text-sm mt-1">
+                            {selectedDispute.transaction
+                              ?.used_optimized_shipping ? (
+                              <span className="text-green-600">
+                                Used optimized shipping rate
+                              </span>
+                            ) : (
+                              <span className="text-amber-600">
+                                Used individual shipping rate
+                              </span>
+                            )}
+                          </p>
+
+                          <p className="text-xs text-gray-500 mt-2">
+                            Note: Shipping disputes in Sambatan orders may
+                            involve group optimization choices. Check if the
+                            participant used the recommended shipping option.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

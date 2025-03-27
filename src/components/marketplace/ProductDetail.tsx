@@ -58,6 +58,7 @@ const reviewSchema = z.object({
 });
 
 type ReviewFormValues = z.infer<typeof reviewSchema>;
+type SortOption = "newest" | "oldest" | "highest" | "lowest";
 
 export default function ProductDetail() {
   const { productId } = useParams<{ productId: string }>();
@@ -70,8 +71,13 @@ export default function ProductDetail() {
   const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [userHasReviewed, setUserHasReviewed] = useState(false);
+  const [userReview, setUserReview] = useState<ProductReview | null>(null);
   const [selectedRating, setSelectedRating] = useState(0);
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [sortOption, setSortOption] = useState<SortOption>("newest");
+  const [filterRating, setFilterRating] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const reviewsPerPage = 5;
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -149,6 +155,17 @@ export default function ProductDetail() {
         if (user) {
           const hasReviewed = await hasUserReviewedProduct(productId);
           setUserHasReviewed(hasReviewed);
+
+          // Find user's review if it exists
+          const userReviewData = reviewsData.find(
+            (review) => review.user_id === user.id,
+          );
+          if (userReviewData) {
+            setUserReview(userReviewData);
+            setSelectedRating(userReviewData.rating);
+            form.setValue("rating", userReviewData.rating);
+            form.setValue("reviewText", userReviewData.review_text || "");
+          }
         }
       } catch (error) {
         console.error("Error fetching reviews:", error);
@@ -158,7 +175,7 @@ export default function ProductDetail() {
     };
 
     fetchReviews();
-  }, [productId, user]);
+  }, [productId, user, form]);
 
   const handleWishlistToggle = async () => {
     if (!user) {
@@ -518,7 +535,7 @@ export default function ProductDetail() {
               Deskripsi Produk
             </TabsTrigger>
             <TabsTrigger value="reviews" className="flex-1">
-              Ulasan (25)
+              Ulasan ({product.review_count || 0})
             </TabsTrigger>
             <TabsTrigger value="discussion" className="flex-1">
               Diskusi
@@ -530,9 +547,18 @@ export default function ProductDetail() {
             </div>
           </TabsContent>
           <TabsContent value="reviews" className="p-4">
-            {user && !userHasReviewed && (
-              <div className="mb-8 p-4 border border-gray-100 rounded-lg bg-gray-50">
-                <h3 className="text-lg font-medium mb-4">Berikan Ulasan</h3>
+            {user && (
+              <div
+                className={`mb-8 p-4 border ${userHasReviewed ? "border-purple-100 bg-purple-50" : "border-gray-100 bg-gray-50"} rounded-lg`}
+              >
+                <h3 className="text-lg font-medium mb-4">
+                  {userHasReviewed ? "Edit Ulasan Anda" : "Berikan Ulasan"}
+                  {userHasReviewed && (
+                    <span className="ml-2 text-sm text-purple-600 font-normal">
+                      (Anda telah memberikan ulasan)
+                    </span>
+                  )}
+                </h3>
                 <Form {...form}>
                   <form
                     onSubmit={form.handleSubmit(async (values) => {
@@ -548,14 +574,25 @@ export default function ProductDetail() {
 
                         toast({
                           title: "Berhasil",
-                          description:
-                            "Ulasan Anda telah dikirim. Terima kasih!",
+                          description: userHasReviewed
+                            ? "Ulasan Anda telah diperbarui. Terima kasih!"
+                            : "Ulasan Anda telah dikirim. Terima kasih!",
                         });
 
                         // Refresh reviews
                         const reviewsData = await getProductReviews(productId);
                         setReviews(reviewsData);
                         setUserHasReviewed(true);
+
+                        // Find user's review
+                        if (user) {
+                          const userReviewData = reviewsData.find(
+                            (review) => review.user_id === user.id,
+                          );
+                          if (userReviewData) {
+                            setUserReview(userReviewData);
+                          }
+                        }
 
                         // Update product rating
                         if (product) {
@@ -566,8 +603,6 @@ export default function ProductDetail() {
                             review_count: ratingData.review_count,
                           });
                         }
-
-                        form.reset();
                       } catch (error) {
                         console.error("Error submitting review:", error);
                         toast({
@@ -618,78 +653,26 @@ export default function ProductDetail() {
                       )}
                     />
 
-                    <Button
-                      type="submit"
-                      className="w-full md:w-auto bg-purple-600 hover:bg-purple-700"
-                      disabled={submittingReview || selectedRating === 0}
-                    >
-                      {submittingReview ? "Mengirim..." : "Kirim Ulasan"}
-                    </Button>
-                  </form>
-                </Form>
-              </div>
-            )}
+                    <div className="flex justify-between items-center">
+                      <Button
+                        type="submit"
+                        className="bg-purple-600 hover:bg-purple-700"
+                        disabled={submittingReview || selectedRating === 0}
+                      >
+                        {submittingReview
+                          ? "Mengirim..."
+                          : userHasReviewed
+                            ? "Perbarui Ulasan"
+                            : "Kirim Ulasan"}
+                      </Button>
 
-            {reviewsLoading ? (
-              <div className="flex justify-center py-8">
-                <LoadingSpinner text="Memuat ulasan..." />
-              </div>
-            ) : reviews.length > 0 ? (
-              <div className="space-y-6">
-                <h3 className="text-lg font-medium mb-4">
-                  Ulasan Produk ({reviews.length})
-                </h3>
-                {reviews.map((review) => (
-                  <div
-                    key={review.id}
-                    className="border-b border-gray-100 pb-6 mb-6 last:border-0"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start">
-                        <Avatar className="h-10 w-10 mr-3">
-                          <AvatarImage
-                            src={
-                              review.user?.avatar_url ||
-                              `https://api.dicebear.com/7.x/avataaars/svg?seed=${review.user_id}`
-                            }
-                            alt={review.user?.full_name || ""}
-                          />
-                          <AvatarFallback>
-                            {review.user?.full_name?.[0] || "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {review.user?.full_name || "Pengguna"}
-                          </p>
-                          <div className="flex items-center mt-1">
-                            <div className="flex">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <Star
-                                  key={star}
-                                  className={`h-4 w-4 ${star <= review.rating ? "fill-yellow-500 text-yellow-500" : "text-gray-300"}`}
-                                />
-                              ))}
-                            </div>
-                            <span className="text-xs text-gray-500 ml-2">
-                              {formatDistanceToNow(
-                                new Date(review.created_at),
-                                {
-                                  addSuffix: true,
-                                  locale: id,
-                                },
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {user && user.id === review.user_id && (
+                      {userHasReviewed && userReview && (
                         <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          type="button"
+                          variant="outline"
+                          className="text-red-500 border-red-200 hover:bg-red-50"
                           onClick={async () => {
+                            if (!userReview) return;
                             if (
                               !window.confirm(
                                 "Apakah Anda yakin ingin menghapus ulasan ini?",
@@ -698,7 +681,7 @@ export default function ProductDetail() {
                               return;
 
                             try {
-                              await deleteProductReview(review.id);
+                              await deleteProductReview(userReview.id);
                               toast({
                                 title: "Berhasil",
                                 description: "Ulasan Anda telah dihapus.",
@@ -710,6 +693,9 @@ export default function ProductDetail() {
                               );
                               setReviews(reviewsData);
                               setUserHasReviewed(false);
+                              setUserReview(null);
+                              setSelectedRating(0);
+                              form.reset();
 
                               // Update product rating
                               if (product && productId) {
@@ -733,20 +719,274 @@ export default function ProductDetail() {
                           }}
                         >
                           <Trash className="h-4 w-4 mr-1" />
-                          Hapus
+                          Hapus Ulasan
                         </Button>
                       )}
                     </div>
+                  </form>
+                </Form>
+              </div>
+            )}
 
-                    {review.review_text && (
-                      <div className="mt-3 text-gray-700 pl-13 ml-13">
-                        <p className="whitespace-pre-line">
-                          {review.review_text}
-                        </p>
+            {reviewsLoading ? (
+              <div className="flex justify-center py-8">
+                <LoadingSpinner text="Memuat ulasan..." />
+              </div>
+            ) : reviews.length > 0 ? (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                  <h3 className="text-lg font-medium">
+                    Ulasan Produk ({reviews.length})
+                  </h3>
+
+                  <div className="flex flex-col md:flex-row gap-2 mt-2 md:mt-0">
+                    <div className="flex items-center">
+                      <span className="text-sm text-gray-500 mr-2">
+                        Filter:
+                      </span>
+                      <div className="flex space-x-1">
+                        {[null, 5, 4, 3, 2, 1].map((rating) => (
+                          <button
+                            key={rating === null ? "all" : rating}
+                            onClick={() => {
+                              setFilterRating(rating);
+                              setCurrentPage(1);
+                            }}
+                            className={`px-2 py-1 text-xs rounded ${filterRating === rating ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-700"}`}
+                          >
+                            {rating === null ? (
+                              "Semua"
+                            ) : (
+                              <div className="flex items-center">
+                                {rating}
+                                <Star className="h-3 w-3 ml-0.5 fill-yellow-500 text-yellow-500" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
                       </div>
-                    )}
+                    </div>
+
+                    <div className="flex items-center">
+                      <span className="text-sm text-gray-500 mr-2">
+                        Urutkan:
+                      </span>
+                      <select
+                        className="text-sm border rounded p-1"
+                        value={sortOption}
+                        onChange={(e) =>
+                          setSortOption(e.target.value as SortOption)
+                        }
+                      >
+                        <option value="newest">Terbaru</option>
+                        <option value="oldest">Terlama</option>
+                        <option value="highest">Rating Tertinggi</option>
+                        <option value="lowest">Rating Terendah</option>
+                      </select>
+                    </div>
                   </div>
-                ))}
+                </div>
+
+                {/* Apply sorting and filtering */}
+                {(() => {
+                  let filteredReviews = [...reviews];
+
+                  // Apply filter
+                  if (filterRating !== null) {
+                    filteredReviews = filteredReviews.filter(
+                      (review) => review.rating === filterRating,
+                    );
+                  }
+
+                  // Apply sorting
+                  filteredReviews.sort((a, b) => {
+                    switch (sortOption) {
+                      case "newest":
+                        return (
+                          new Date(b.created_at).getTime() -
+                          new Date(a.created_at).getTime()
+                        );
+                      case "oldest":
+                        return (
+                          new Date(a.created_at).getTime() -
+                          new Date(b.created_at).getTime()
+                        );
+                      case "highest":
+                        return b.rating - a.rating;
+                      case "lowest":
+                        return a.rating - b.rating;
+                      default:
+                        return 0;
+                    }
+                  });
+
+                  // Pagination
+                  const indexOfLastReview = currentPage * reviewsPerPage;
+                  const indexOfFirstReview = indexOfLastReview - reviewsPerPage;
+                  const currentReviews = filteredReviews.slice(
+                    indexOfFirstReview,
+                    indexOfLastReview,
+                  );
+                  const totalPages = Math.ceil(
+                    filteredReviews.length / reviewsPerPage,
+                  );
+
+                  if (filteredReviews.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>Tidak ada ulasan yang sesuai dengan filter.</p>
+                        <Button
+                          variant="link"
+                          onClick={() => setFilterRating(null)}
+                          className="text-purple-600 mt-2"
+                        >
+                          Lihat semua ulasan
+                        </Button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <>
+                      {currentReviews.map((review) => {
+                        const isUserReview = user && user.id === review.user_id;
+                        return (
+                          <div
+                            key={review.id}
+                            className={`border-b border-gray-100 pb-6 mb-6 last:border-0 ${isUserReview ? "bg-purple-50 p-4 rounded-lg border border-purple-100" : ""}`}
+                          >
+                            {isUserReview && (
+                              <div className="mb-2 text-xs font-medium text-purple-600 flex items-center">
+                                <User className="h-3 w-3 mr-1" />
+                                Ulasan Anda
+                              </div>
+                            )}
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start">
+                                <Avatar className="h-10 w-10 mr-3">
+                                  <AvatarImage
+                                    src={
+                                      review.user?.avatar_url ||
+                                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${review.user_id}`
+                                    }
+                                    alt={review.user?.full_name || ""}
+                                  />
+                                  <AvatarFallback>
+                                    {review.user?.full_name?.[0] || "U"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium text-gray-900">
+                                    {review.user?.full_name || "Pengguna"}
+                                  </p>
+                                  <div className="flex items-center mt-1">
+                                    <div className="flex">
+                                      {[1, 2, 3, 4, 5].map((star) => (
+                                        <Star
+                                          key={star}
+                                          className={`h-4 w-4 ${star <= review.rating ? "fill-yellow-500 text-yellow-500" : "text-gray-300"}`}
+                                        />
+                                      ))}
+                                    </div>
+                                    <span className="text-xs text-gray-500 ml-2">
+                                      {formatDistanceToNow(
+                                        new Date(review.created_at),
+                                        {
+                                          addSuffix: true,
+                                          locale: id,
+                                        },
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {isUserReview && (
+                                <div className="flex space-x-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                                    onClick={() => {
+                                      // Scroll to review form
+                                      window.scrollTo({
+                                        top:
+                                          document.querySelector("form")
+                                            ?.offsetTop || 0,
+                                        behavior: "smooth",
+                                      });
+                                    }}
+                                  >
+                                    <Edit className="h-4 w-4 mr-1" />
+                                    Edit
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+
+                            {review.review_text && (
+                              <div className="mt-3 text-gray-700 ml-13">
+                                <p className="whitespace-pre-line">
+                                  {review.review_text}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Pagination */}
+                      {totalPages > 1 && (
+                        <div className="flex justify-center mt-8">
+                          <div className="flex space-x-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setCurrentPage((prev) => Math.max(prev - 1, 1))
+                              }
+                              disabled={currentPage === 1}
+                            >
+                              &lt;
+                            </Button>
+
+                            {Array.from(
+                              { length: totalPages },
+                              (_, i) => i + 1,
+                            ).map((page) => (
+                              <Button
+                                key={page}
+                                variant={
+                                  currentPage === page ? "default" : "outline"
+                                }
+                                size="sm"
+                                onClick={() => setCurrentPage(page)}
+                                className={
+                                  currentPage === page ? "bg-purple-600" : ""
+                                }
+                              >
+                                {page}
+                              </Button>
+                            ))}
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setCurrentPage((prev) =>
+                                  Math.min(prev + 1, totalPages),
+                                )
+                              }
+                              disabled={currentPage === totalPages}
+                            >
+                              &gt;
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             ) : (
               <div className="text-center py-8 text-gray-500">

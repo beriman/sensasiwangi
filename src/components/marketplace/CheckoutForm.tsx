@@ -12,11 +12,12 @@ import {
   ShippingRate,
 } from "@/types/marketplace";
 import { getUserShippingAddress } from "@/lib/shipping";
+import { generateQRPayment, PaymentMethod } from "@/lib/qrPayment";
 import {
-  generateQRPayment,
-  getAvailablePaymentMethods,
-  PaymentMethod,
-} from "@/lib/qrPayment";
+  getPaymentGateways,
+  getBankAccounts,
+  PaymentGateway,
+} from "@/lib/paymentGateways";
 import ShippingAddressForm from "./ShippingAddressForm";
 import ShippingOptions from "./ShippingOptions";
 import QRPaymentModal from "./QRPaymentModal";
@@ -54,9 +55,7 @@ export default function CheckoutForm({
   const [processingOrder, setProcessingOrder] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<PaymentMethod>("QRIS");
-  const [paymentMethods, setPaymentMethods] = useState<
-    Array<{ id: string; name: string; logo_url: string }>
-  >([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentGateway[]>([]);
   const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
 
   // QR Payment Modal
@@ -90,33 +89,10 @@ export default function CheckoutForm({
     const fetchPaymentMethods = async () => {
       try {
         setPaymentMethodsLoading(true);
-        const methods = await getAvailablePaymentMethods();
-        setPaymentMethods(methods);
+        const methods = await getPaymentGateways();
+        setPaymentMethods(methods.filter((method) => method.isActive));
       } catch (error) {
         console.error("Error fetching payment methods:", error);
-        // Set default payment methods if there's an error
-        setPaymentMethods([
-          {
-            id: "QRIS",
-            name: "QRIS",
-            logo_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=QRIS",
-          },
-          {
-            id: "OVO",
-            name: "OVO",
-            logo_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=OVO",
-          },
-          {
-            id: "GOPAY",
-            name: "GoPay",
-            logo_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=GOPAY",
-          },
-          {
-            id: "DANA",
-            name: "DANA",
-            logo_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=DANA",
-          },
-        ]);
       } finally {
         setPaymentMethodsLoading(false);
       }
@@ -251,16 +227,59 @@ export default function CheckoutForm({
             // Show recommendation to user
             const optimalRate = optimalShipping.participantRates[participantId];
             const savingAmount = selectedShippingRate.price - optimalRate.price;
+            const totalGroupSavings = optimalShipping.savings;
 
+            // Enhanced message showing both individual and group savings
             if (savingAmount > 0) {
               const useOptimalRate = window.confirm(
                 `Kami menemukan opsi pengiriman yang lebih hemat untuk Sambatan ini menggunakan ${optimalRate.provider?.name} ${optimalRate.service_type}. ` +
-                  `Anda dapat menghemat Rp${savingAmount.toLocaleString()} dengan opsi ini. Gunakan opsi yang direkomendasikan?`,
+                  `Anda dapat menghemat Rp${savingAmount.toLocaleString()} dengan opsi ini. ` +
+                  `\n\nSecara keseluruhan, semua peserta Sambatan dapat menghemat total Rp${totalGroupSavings.toLocaleString()} jika menggunakan penyedia yang sama. ` +
+                  `\n\nGunakan opsi yang direkomendasikan?`,
               );
 
               if (useOptimalRate) {
                 // Use the optimal rate instead
                 selectedShippingRate = optimalRate;
+
+                // Record that this participant chose the optimized rate
+                try {
+                  await supabase
+                    .from("sambatan_participants")
+                    .update({
+                      used_optimized_shipping: true,
+                      shipping_provider_code: optimalRate.provider?.code,
+                      shipping_rate_id: optimalRate.id,
+                    })
+                    .eq("sambatan_id", sambatanId)
+                    .eq("participant_id", participantId);
+                } catch (error) {
+                  console.error(
+                    "Error updating participant shipping choice:",
+                    error,
+                  );
+                  // Continue with checkout even if tracking fails
+                }
+              } else {
+                // Record that this participant declined the optimized rate
+                try {
+                  await supabase
+                    .from("sambatan_participants")
+                    .update({
+                      used_optimized_shipping: false,
+                      shipping_provider_code:
+                        selectedShippingRate.provider?.code,
+                      shipping_rate_id: selectedShippingRate.id,
+                    })
+                    .eq("sambatan_id", sambatanId)
+                    .eq("participant_id", participantId);
+                } catch (error) {
+                  console.error(
+                    "Error updating participant shipping choice:",
+                    error,
+                  );
+                  // Continue with checkout even if tracking fails
+                }
               }
             }
           }
@@ -440,29 +459,41 @@ export default function CheckoutForm({
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {paymentMethods.map((method) => (
-                      <div
-                        key={method.id}
-                        className={`border rounded-md p-3 flex flex-col items-center cursor-pointer transition-all ${selectedPaymentMethod === method.id ? "border-purple-500 bg-purple-50" : "hover:border-gray-400"}`}
-                        onClick={() =>
-                          handlePaymentMethodSelect(method.id as PaymentMethod)
-                        }
-                      >
-                        <div className="w-12 h-12 mb-2">
-                          <img
-                            src={
-                              method.logo_url ||
-                              `https://api.dicebear.com/7.x/avataaars/svg?seed=${method.id}`
-                            }
-                            alt={method.name}
-                            className="w-full h-full object-contain"
-                          />
+                    {paymentMethods
+                      .filter(
+                        (method) =>
+                          method.id !== "BANK_TRANSFER" &&
+                          method.id !== "VIRTUAL_ACCOUNT",
+                      )
+                      .map((method) => (
+                        <div
+                          key={method.id}
+                          className={`border rounded-md p-3 flex flex-col items-center cursor-pointer transition-all ${selectedPaymentMethod === method.id ? "border-purple-500 bg-purple-50" : "hover:border-gray-400"}`}
+                          onClick={() =>
+                            handlePaymentMethodSelect(
+                              method.id as PaymentMethod,
+                            )
+                          }
+                        >
+                          <div className="w-12 h-12 mb-2">
+                            <img
+                              src={method.logo_url}
+                              alt={method.name}
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                          <span className="text-sm font-medium">
+                            {method.name}
+                          </span>
+                          {method.description && (
+                            <span className="text-xs text-gray-500 text-center mt-1">
+                              {method.description.length > 30
+                                ? `${method.description.substring(0, 30)}...`
+                                : method.description}
+                            </span>
+                          )}
                         </div>
-                        <span className="text-sm font-medium">
-                          {method.name}
-                        </span>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 )}
                 <div className="mt-4 text-sm text-gray-500">
@@ -473,17 +504,67 @@ export default function CheckoutForm({
 
               <TabsContent value="transfer" className="pt-4">
                 <div className="space-y-4">
-                  <div className="p-4 border rounded-md">
-                    <div className="font-medium">Bank BCA</div>
-                    <div className="text-gray-600">1234567890</div>
-                    <div className="text-gray-600">
-                      a.n. Sensasi Wangi Indonesia
+                  {paymentMethodsLoading ? (
+                    <div className="flex justify-center py-4">
+                      <LoadingSpinner text="Memuat metode pembayaran..." />
                     </div>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Setelah melakukan pembayaran, Anda perlu mengunggah bukti
-                    pembayaran.
-                  </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3">
+                      {paymentMethods
+                        .filter(
+                          (method) =>
+                            method.id === "BANK_TRANSFER" ||
+                            method.id === "VIRTUAL_ACCOUNT",
+                        )
+                        .map((method) => (
+                          <div
+                            key={method.id}
+                            className={`border rounded-md p-3 flex items-center cursor-pointer transition-all ${selectedPaymentMethod === method.id ? "border-purple-500 bg-purple-50" : "hover:border-gray-400"}`}
+                            onClick={() =>
+                              handlePaymentMethodSelect(
+                                method.id as PaymentMethod,
+                              )
+                            }
+                          >
+                            <div className="w-12 h-12 mr-3 flex-shrink-0">
+                              <img
+                                src={method.logo_url}
+                                alt={method.name}
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                            <div>
+                              <span className="font-medium">{method.name}</span>
+                              <p className="text-sm text-gray-500">
+                                {method.description}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                  {selectedPaymentMethod === "BANK_TRANSFER" && (
+                    <div className="mt-4 space-y-3">
+                      <div className="p-4 border rounded-md">
+                        <div className="font-medium">Bank BCA</div>
+                        <div className="text-gray-600">1234567890</div>
+                        <div className="text-gray-600">
+                          a.n. Sensasi Wangi Indonesia
+                        </div>
+                      </div>
+                      <div className="p-4 border rounded-md">
+                        <div className="font-medium">Bank Mandiri</div>
+                        <div className="text-gray-600">0987654321</div>
+                        <div className="text-gray-600">
+                          a.n. Sensasi Wangi Indonesia
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Setelah melakukan pembayaran, Anda perlu mengunggah
+                        bukti pembayaran.
+                      </div>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>

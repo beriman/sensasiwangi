@@ -197,6 +197,12 @@ export default function QRPaymentModal({
         return "Pembayaran LinkAja";
       case "SHOPEEPAY":
         return "Pembayaran ShopeePay";
+      case "BANK_TRANSFER":
+        return "Transfer Bank";
+      case "VIRTUAL_ACCOUNT":
+        return "Virtual Account";
+      case "CREDIT_CARD":
+        return "Kartu Kredit";
       default:
         return "Pembayaran QRIS";
     }
@@ -210,41 +216,181 @@ export default function QRPaymentModal({
           <DialogDescription>
             {paymentMethod === "QRIS"
               ? "Scan QR code di bawah ini untuk melakukan pembayaran"
-              : `Gunakan aplikasi ${paymentMethod} untuk menyelesaikan pembayaran`}
+              : paymentMethod === "BANK_TRANSFER"
+                ? "Transfer ke rekening bank berikut untuk menyelesaikan pembayaran"
+                : paymentMethod === "VIRTUAL_ACCOUNT"
+                  ? "Gunakan kode virtual account berikut untuk menyelesaikan pembayaran"
+                  : paymentMethod === "CREDIT_CARD"
+                    ? "Masukkan detail kartu kredit Anda untuk menyelesaikan pembayaran"
+                    : `Gunakan aplikasi ${paymentMethod} untuk menyelesaikan pembayaran`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col items-center space-y-4">
           {status === "pending" && (
             <>
-              <div className="border rounded-lg p-4 bg-white relative">
-                {isRefreshing && (
-                  <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+              {paymentMethod === "QRIS" ||
+              paymentMethod === "OVO" ||
+              paymentMethod === "GOPAY" ||
+              paymentMethod === "DANA" ||
+              paymentMethod === "LINKAJA" ||
+              paymentMethod === "SHOPEEPAY" ? (
+                <div className="border rounded-lg p-4 bg-white relative">
+                  {isRefreshing && (
+                    <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+                    </div>
+                  )}
+                  <img
+                    src={qrCodeUrl}
+                    alt="QR Code Pembayaran"
+                    className="w-64 h-64"
+                  />
+                </div>
+              ) : paymentMethod === "BANK_TRANSFER" ? (
+                <div className="border rounded-lg p-4 bg-white space-y-3">
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-500">Bank</p>
+                    <p className="font-medium text-lg">BCA</p>
                   </div>
-                )}
-                <img
-                  src={qrCodeUrl}
-                  alt="QR Code Pembayaran"
-                  className="w-64 h-64"
-                />
-              </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-500">Nomor Rekening</p>
+                    <div className="flex items-center">
+                      <p className="font-medium text-lg">1234567890</p>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText("1234567890");
+                          toast({
+                            title: "Nomor Rekening Disalin",
+                            description:
+                              "Nomor rekening telah disalin ke clipboard.",
+                          });
+                        }}
+                        className="ml-2 p-1 hover:bg-gray-100 rounded"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-500">Atas Nama</p>
+                    <p className="font-medium">Sensasi Wangi Indonesia</p>
+                  </div>
+                </div>
+              ) : paymentMethod === "VIRTUAL_ACCOUNT" ? (
+                <div className="border rounded-lg p-4 bg-white space-y-3">
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-500">Bank</p>
+                    <p className="font-medium text-lg">BCA Virtual Account</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-500">
+                      Nomor Virtual Account
+                    </p>
+                    <div className="flex items-center">
+                      <p className="font-medium text-lg">
+                        {transactionId || "8277081234567890"}
+                      </p>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            transactionId || "8277081234567890",
+                          );
+                          toast({
+                            title: "Nomor VA Disalin",
+                            description:
+                              "Nomor virtual account telah disalin ke clipboard.",
+                          });
+                        }}
+                        className="ml-2 p-1 hover:bg-gray-100 rounded"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : paymentMethod === "CREDIT_CARD" ? (
+                <div className="border rounded-lg p-4 bg-white space-y-3">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium">
+                      Nomor Kartu
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full p-2 border rounded"
+                      placeholder="1234 5678 9012 3456"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium">
+                      Nama Pemegang Kartu
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full p-2 border rounded"
+                      placeholder="Nama sesuai kartu"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium">
+                        Tanggal Kadaluarsa
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full p-2 border rounded"
+                        placeholder="MM/YY"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium">
+                        CVV/CVC
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full p-2 border rounded"
+                        placeholder="123"
+                      />
+                    </div>
+                  </div>
+                  <Button className="w-full mt-2">Proses Pembayaran</Button>
+                </div>
+              ) : (
+                <div className="border rounded-lg p-4 bg-white relative">
+                  <img
+                    src={qrCodeUrl}
+                    alt="QR Code Pembayaran"
+                    className="w-64 h-64"
+                  />
+                </div>
+              )}
 
-              <div className="flex space-x-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleRefreshQR}
-                  disabled={isRefreshing}
-                >
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                  Refresh
-                </Button>
-                <Button size="sm" variant="outline" onClick={handleDownloadQR}>
-                  <Download className="h-4 w-4 mr-1" />
-                  Download
-                </Button>
-              </div>
+              {(paymentMethod === "QRIS" ||
+                paymentMethod === "OVO" ||
+                paymentMethod === "GOPAY" ||
+                paymentMethod === "DANA" ||
+                paymentMethod === "LINKAJA" ||
+                paymentMethod === "SHOPEEPAY") && (
+                <div className="flex space-x-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRefreshQR}
+                    disabled={isRefreshing}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Refresh
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDownloadQR}
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    Download
+                  </Button>
+                </div>
+              )}
 
               <div className="text-center w-full">
                 <p className="font-medium">Total Pembayaran</p>
@@ -297,6 +443,44 @@ export default function QRPaymentModal({
                         <li>Scan QR code di atas</li>
                         <li>Periksa detail pembayaran dan konfirmasi</li>
                         <li>Selesaikan pembayaran di aplikasi Anda</li>
+                      </ol>
+                    ) : paymentMethod === "BANK_TRANSFER" ? (
+                      <ol className="list-decimal pl-5 space-y-1">
+                        <li>Catat nomor rekening dan nama penerima</li>
+                        <li>Buka aplikasi mobile banking atau kunjungi ATM</li>
+                        <li>
+                          Pilih menu transfer dan masukkan detail rekening
+                        </li>
+                        <li>
+                          Masukkan jumlah transfer sesuai dengan total
+                          pembayaran
+                        </li>
+                        <li>
+                          Gunakan nomor invoice sebagai keterangan transfer
+                        </li>
+                        <li>Simpan bukti transfer untuk verifikasi</li>
+                      </ol>
+                    ) : paymentMethod === "VIRTUAL_ACCOUNT" ? (
+                      <ol className="list-decimal pl-5 space-y-1">
+                        <li>Catat nomor virtual account yang ditampilkan</li>
+                        <li>Buka aplikasi mobile banking atau kunjungi ATM</li>
+                        <li>Pilih menu pembayaran/transfer virtual account</li>
+                        <li>Masukkan nomor virtual account</li>
+                        <li>Konfirmasi detail pembayaran</li>
+                        <li>Selesaikan pembayaran sesuai instruksi</li>
+                      </ol>
+                    ) : paymentMethod === "CREDIT_CARD" ? (
+                      <ol className="list-decimal pl-5 space-y-1">
+                        <li>Masukkan nomor kartu kredit Anda</li>
+                        <li>Masukkan nama pemegang kartu</li>
+                        <li>Masukkan tanggal kadaluarsa kartu</li>
+                        <li>
+                          Masukkan kode CVV/CVC (3 digit di belakang kartu)
+                        </li>
+                        <li>Klik tombol "Bayar" untuk memproses pembayaran</li>
+                        <li>
+                          Ikuti instruksi autentikasi 3D Secure jika diminta
+                        </li>
                       </ol>
                     ) : (
                       <ol className="list-decimal pl-5 space-y-1">

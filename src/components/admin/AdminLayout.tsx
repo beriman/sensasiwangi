@@ -54,6 +54,12 @@ const AdminLayout = ({ children, activeTab }: AdminLayoutProps) => {
                 <TabsTrigger value="transactions" className="px-4 py-2">
                   Transactions
                 </TabsTrigger>
+                <TabsTrigger value="orders" className="px-4 py-2">
+                  Orders
+                </TabsTrigger>
+                <TabsTrigger value="products" className="px-4 py-2">
+                  Products
+                </TabsTrigger>
                 <TabsTrigger value="badges" className="px-4 py-2">
                   Badges
                 </TabsTrigger>
@@ -63,8 +69,11 @@ const AdminLayout = ({ children, activeTab }: AdminLayoutProps) => {
                 <TabsTrigger value="sambatan" className="px-4 py-2">
                   Sambatan
                 </TabsTrigger>
-                <TabsTrigger value="products" className="px-4 py-2">
-                  Products
+                <TabsTrigger value="seller-analytics" className="px-4 py-2">
+                  Seller Analytics
+                </TabsTrigger>
+                <TabsTrigger value="seller-orders" className="px-4 py-2">
+                  Seller Orders
                 </TabsTrigger>
                 <TabsTrigger value="financial" className="px-4 py-2">
                   Financial

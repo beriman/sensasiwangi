@@ -42,7 +42,9 @@ Deno.serve(async (req) => {
     // Find all expired sambatans that are still open
     const { data: expiredSambatans, error: findError } = await supabaseAdmin
       .from("sambatan")
-      .select("id, product_id, initiator_id, product:product_id(name)")
+      .select(
+        "id, product_id, initiator_id, product:product_id(name, image_url), target_quantity, current_quantity",
+      )
       .eq("status", "open")
       .lt("expires_at", now);
 
@@ -93,7 +95,14 @@ Deno.serve(async (req) => {
             type: "sambatan_expired",
             title: "Sambatan Kedaluwarsa",
             content: `Sambatan untuk ${sambatan.product?.name || "produk"} telah kedaluwarsa dan dibatalkan karena tidak mencapai target peserta dalam waktu yang ditentukan.`,
-            metadata: { sambatan_id: sambatan.id },
+            metadata: {
+              sambatan_id: sambatan.id,
+              product_id: sambatan.product_id,
+              product_name: sambatan.product?.name,
+              product_image: sambatan.product?.image_url,
+              target_quantity: sambatan.target_quantity,
+              current_quantity: sambatan.current_quantity,
+            },
             read: false,
             created_at: now,
           }));
@@ -108,6 +117,108 @@ Deno.serve(async (req) => {
               `Error creating notifications for sambatan ${sambatan.id}: ${notifError.message}`,
             );
           }
+        }
+
+        // Send special notification to initiator with more details
+        const initiatorNotification = {
+          user_id: sambatan.initiator_id,
+          type: "sambatan_expired_initiator",
+          title: "Sambatan Anda Kedaluwarsa",
+          content: `Sambatan yang Anda mulai untuk ${sambatan.product?.name || "produk"} telah kedaluwarsa dan dibatalkan karena tidak mencapai target ${sambatan.target_quantity} peserta dalam waktu yang ditentukan. Hanya ${sambatan.current_quantity} dari ${sambatan.target_quantity} slot yang terisi.`,
+          metadata: {
+            sambatan_id: sambatan.id,
+            product_id: sambatan.product_id,
+            product_name: sambatan.product?.name,
+            product_image: sambatan.product?.image_url,
+            target_quantity: sambatan.target_quantity,
+            current_quantity: sambatan.current_quantity,
+            is_initiator: true,
+          },
+          read: false,
+          created_at: now,
+        };
+
+        const { error: initiatorNotifError } = await supabaseAdmin
+          .from("notifications")
+          .insert(initiatorNotification);
+
+        if (initiatorNotifError) {
+          console.error(
+            `Error creating initiator notification for sambatan ${sambatan.id}: ${initiatorNotifError.message}`,
+          );
+        }
+
+        // If there are participants with pending payments, refund them
+        const { data: pendingPayments } = await supabaseAdmin
+          .from("sambatan_participants")
+          .select("id, participant_id, payment_status, payment_proof")
+          .eq("sambatan_id", sambatan.id)
+          .eq("payment_status", "pending");
+
+        if (pendingPayments && pendingPayments.length > 0) {
+          // Create refund records or update payment status as needed
+          const refundUpdates = pendingPayments.map(async (payment) => {
+            // If they've uploaded payment proof, mark for refund
+            if (payment.payment_proof) {
+              // Create a refund record
+              const { error: refundError } = await supabaseAdmin
+                .from("refunds")
+                .insert({
+                  user_id: payment.participant_id,
+                  sambatan_id: sambatan.id,
+                  amount: null, // Admin will need to determine amount
+                  status: "pending",
+                  reason: "Sambatan expired",
+                  created_at: now,
+                });
+
+              if (refundError) {
+                console.error(
+                  `Error creating refund record: ${refundError.message}`,
+                );
+              }
+
+              // Send refund notification
+              const { error: refundNotifError } = await supabaseAdmin
+                .from("notifications")
+                .insert({
+                  user_id: payment.participant_id,
+                  type: "refund_initiated",
+                  title: "Pengembalian Dana Diproses",
+                  content: `Pembayaran Anda untuk Sambatan ${sambatan.product?.name || "produk"} yang kedaluwarsa akan dikembalikan. Tim admin akan menghubungi Anda untuk proses pengembalian dana.`,
+                  metadata: {
+                    sambatan_id: sambatan.id,
+                    product_id: sambatan.product_id,
+                    refund_status: "pending",
+                  },
+                  read: false,
+                  created_at: now,
+                });
+
+              if (refundNotifError) {
+                console.error(
+                  `Error creating refund notification: ${refundNotifError.message}`,
+                );
+              }
+            } else {
+              // If no payment proof, just cancel their participation
+              const { error: cancelError } = await supabaseAdmin
+                .from("sambatan_participants")
+                .update({
+                  payment_status: "cancelled",
+                  updated_at: now,
+                })
+                .eq("id", payment.id);
+
+              if (cancelError) {
+                console.error(
+                  `Error cancelling participant payment: ${cancelError.message}`,
+                );
+              }
+            }
+          });
+
+          await Promise.all(refundUpdates);
         }
 
         return { id: sambatan.id, success: true };

@@ -65,7 +65,7 @@ const RefundManagement = () => {
 
     try {
       setProcessingRefund(true);
-      const updatedRefund = await updateRefundStatus(selectedRefund.id, status);
+      const updatedRefund = await updateRefundStatus(selectedRefund.id, status, adminNotes);
 
       // Update local state
       setRefunds((prev) =>
@@ -247,4 +247,82 @@ const RefundManagement = () => {
                   <div className="mb-3">
                     <p className="text-gray-500 text-sm">Buyer</p>
                     <p className="font-medium">
-                      {selectedRefund.transaction?.buyer?.full_
+                      {selectedRefund.transaction?.buyer?.full_name || "Unknown"}
+                    </p>
+                  </div>
+                  <div className="mb-3">
+                    <p className="text-gray-500 text-sm">Amount</p>
+                    <p className="font-medium">
+                      ${selectedRefund.amount.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="mb-3">
+                    <p className="text-gray-500 text-sm">Reason</p>
+                    <p className="font-medium">
+                      {selectedRefund.refund_reason || "No reason provided"}
+                    </p>
+                  </div>
+                  <div className="mb-3">
+                    <p className="text-gray-500 text-sm">Status</p>
+                    <div className="mt-1">{getStatusBadge(selectedRefund.status)}</div>
+                  </div>
+                </div>
+
+                {/* Admin Notes */}
+                <div className="mt-4">
+                  <p className="text-gray-500 text-sm mb-2">Admin Notes</p>
+                  <Textarea
+                    placeholder="Add notes about this refund (visible to admin only)"
+                    value={adminNotes}
+                    onChange={(e) => setAdminNotes(e.target.value)}
+                    className="min-h-[100px]"
+                    disabled={selectedRefund.status === "completed" || selectedRefund.status === "rejected"}
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                {selectedRefund.status === "pending" && (
+                  <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleUpdateStatus("processing")}
+                      disabled={processingRefund}
+                      className="border-blue-500 text-blue-500 hover:bg-blue-50"
+                    >
+                      <Clock className="h-4 w-4 mr-1" />
+                      Mark as Processing
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleUpdateStatus("rejected")}
+                      disabled={processingRefund}
+                      className="border-red-500 text-red-500 hover:bg-red-50"
+                    >
+                      <XCircle className="h-4 w-4 mr-1" />
+                      Reject Refund
+                    </Button>
+                  </div>
+                )}
+
+                {selectedRefund.status === "processing" && (
+                  <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleUpdateStatus("completed")}
+                      disabled={processingRefund}
+                      className="border-green-500 text-green-500 hover:bg-green-50"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      Complete Refund
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleUpdateStatus("rejected")}
+                      disabled={processingRefund}
+                      className="border-red-500 text-red-500 hover:bg-red-50"
+                    >
+                      <XCircle className="h-4 w-4 mr-1" />
+                      Reject Refund
+                    </Button>
+                  </div>
+                )}

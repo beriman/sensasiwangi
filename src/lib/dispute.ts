@@ -211,11 +211,16 @@ export async function getTransactionRefunds(
 export async function updateRefundStatus(
   refundId: string,
   status: MarketplaceRefund["status"],
+  adminNotes?: string,
 ): Promise<MarketplaceRefund> {
   const updates: any = {
     status,
     updated_at: new Date().toISOString(),
   };
+
+  if (adminNotes) {
+    updates.admin_notes = adminNotes;
+  }
 
   if (status === "completed") {
     updates.completed_at = new Date().toISOString();
