@@ -164,7 +164,16 @@ export async function isProductWishlisted(productId: string): Promise<boolean> {
 export async function getWishlistedProducts(
   userId?: string,
 ): Promise<MarketplaceProduct[]> {
-  // If no userId is provided, use the current user
+  if (!userId) {
+    // Get current user if no userId provided
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    userId = user?.id;
+  }
+
+  if (!userId) return []; // Return empty array if no user
+
   const { data, error } = await supabase
     .from("wishlists")
     .select(
@@ -173,7 +182,7 @@ export async function getWishlistedProducts(
       product:product_id(*, seller:seller_id(full_name, avatar_url))
     `,
     )
-    .eq("user_id", userId || "")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;

@@ -125,9 +125,22 @@ export default function UserProfileCard() {
         .eq("status", "active");
 
       // Get seller's average rating
-      const { data: ratingData } = await supabase
-        .rpc("get_seller_rating", { seller_id: userId })
-        .single();
+      let avgRating = 0;
+      let reviewCount = 0;
+
+      try {
+        const { data: ratingData } = await supabase
+          .rpc("get_seller_rating", { seller_id: userId })
+          .single();
+
+        if (ratingData) {
+          avgRating = ratingData.avg_rating || 0;
+          reviewCount = ratingData.review_count || 0;
+        }
+      } catch (ratingError) {
+        console.error("Error fetching seller rating:", ratingError);
+        // Continue with default values if RPC fails
+      }
 
       // Get total sales count
       const { count: totalSales } = await supabase
@@ -139,8 +152,8 @@ export default function UserProfileCard() {
       return {
         total_products: totalProducts || 0,
         active_products: activeProducts || 0,
-        avg_rating: ratingData?.avg_rating || 0,
-        review_count: ratingData?.review_count || 0,
+        avg_rating: avgRating,
+        review_count: reviewCount,
         total_sales: totalSales || 0,
       };
     } catch (error) {
@@ -253,7 +266,7 @@ export default function UserProfileCard() {
           await supabase
             .from("users")
             .select("id")
-            .order("exp_points", { ascending: false });
+            .order("exp", { ascending: false });
 
         let leaderboardPosition = undefined;
         if (!leaderboardError && leaderboardData) {
@@ -800,7 +813,7 @@ export default function UserProfileCard() {
                         <span className="text-sm font-medium">Rating</span>
                       </div>
                       <span className="text-lg font-semibold text-gray-700">
-                        {profileData.seller_info.avg_rating.toFixed(1)}
+                        {(profileData.seller_info.avg_rating || 0).toFixed(1)}
                       </span>
                     </div>
                     <div className="mt-1 flex justify-between text-xs text-gray-500">
