@@ -171,6 +171,21 @@ export default function SambatanPage() {
             // Refresh participants if status changes
             if (payload.old.status !== updatedSambatan.status) {
               fetchSambatan();
+
+              // Show toast notification for status change
+              if (updatedSambatan.status === "closed") {
+                toast({
+                  title: "Sambatan Tertutup",
+                  description:
+                    "Kuota Sambatan telah terpenuhi. Silakan lakukan pembayaran.",
+                });
+              } else if (updatedSambatan.status === "completed") {
+                toast({
+                  title: "Sambatan Selesai",
+                  description:
+                    "Semua peserta telah melakukan pembayaran. Produk akan segera dikirim.",
+                });
+              }
             }
           },
         )
@@ -187,9 +202,26 @@ export default function SambatanPage() {
             table: "sambatan_participants",
             filter: `sambatan_id=eq.${sambatanId}`,
           },
-          () => {
+          (payload) => {
             // Refresh the sambatan data when a new participant joins
             fetchSambatan();
+
+            // Show toast notification for new participant
+            if (user.id === sambatan?.initiator_id) {
+              const newParticipant = payload.new as any;
+              toast({
+                title: "Peserta Baru Bergabung",
+                description: `Peserta baru telah bergabung dengan Sambatan untuk ${sambatan?.product?.name}`,
+              });
+
+              // Play notification sound
+              const audio = new Audio("/notification.mp3");
+              audio
+                .play()
+                .catch((e) =>
+                  console.error("Error playing notification sound:", e),
+                );
+            }
           },
         )
         .on(
@@ -200,9 +232,30 @@ export default function SambatanPage() {
             table: "sambatan_participants",
             filter: `sambatan_id=eq.${sambatanId}`,
           },
-          () => {
+          (payload) => {
             // Refresh the sambatan data when a participant's status changes
             fetchSambatan();
+
+            // Show toast notification for payment status change
+            const updatedParticipant = payload.new as any;
+            if (
+              updatedParticipant.participant_id === user.id &&
+              payload.old.payment_status !== updatedParticipant.payment_status
+            ) {
+              if (updatedParticipant.payment_status === "verified") {
+                toast({
+                  title: "Pembayaran Terverifikasi",
+                  description: "Pembayaran Anda telah diverifikasi oleh admin.",
+                });
+              } else if (updatedParticipant.payment_status === "cancelled") {
+                toast({
+                  title: "Pembayaran Dibatalkan",
+                  description:
+                    "Pembayaran Anda telah dibatalkan. Silakan hubungi admin untuk informasi lebih lanjut.",
+                  variant: "destructive",
+                });
+              }
+            }
           },
         )
         .subscribe();

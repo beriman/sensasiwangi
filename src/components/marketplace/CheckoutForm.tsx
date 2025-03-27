@@ -12,10 +12,23 @@ import {
   ShippingRate,
 } from "@/types/marketplace";
 import { getUserShippingAddress } from "@/lib/shipping";
+import {
+  generateQRPayment,
+  getAvailablePaymentMethods,
+  PaymentMethod,
+} from "@/lib/qrPayment";
 import ShippingAddressForm from "./ShippingAddressForm";
 import ShippingOptions from "./ShippingOptions";
+import QRPaymentModal from "./QRPaymentModal";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { MapPin, CreditCard, Truck, ShoppingBag } from "lucide-react";
+import {
+  MapPin,
+  CreditCard,
+  Truck,
+  ShoppingBag,
+  Smartphone,
+} from "lucide-react";
+import { supabase } from "../../../supabase/supabase";
 
 interface CheckoutFormProps {
   product: MarketplaceProduct;
@@ -39,6 +52,24 @@ export default function CheckoutForm({
   const [selectedShippingRate, setSelectedShippingRate] =
     useState<ShippingRate | null>(null);
   const [processingOrder, setProcessingOrder] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] =
+    useState<PaymentMethod>("QRIS");
+  const [paymentMethods, setPaymentMethods] = useState<
+    Array<{ id: string; name: string; logo_url: string }>
+  >([]);
+  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
+
+  // QR Payment Modal
+  const [qrPaymentModalOpen, setQRPaymentModalOpen] = useState(false);
+  const [qrPaymentData, setQRPaymentData] = useState<{
+    orderId: string;
+    invoiceNumber: string;
+    qrCodeUrl: string;
+    amount: number;
+    paymentMethod: PaymentMethod;
+    expiryTime?: string;
+    transactionId?: string;
+  } | null>(null);
 
   useEffect(() => {
     const fetchUserAddress = async () => {
@@ -56,7 +87,43 @@ export default function CheckoutForm({
       }
     };
 
+    const fetchPaymentMethods = async () => {
+      try {
+        setPaymentMethodsLoading(true);
+        const methods = await getAvailablePaymentMethods();
+        setPaymentMethods(methods);
+      } catch (error) {
+        console.error("Error fetching payment methods:", error);
+        // Set default payment methods if there's an error
+        setPaymentMethods([
+          {
+            id: "QRIS",
+            name: "QRIS",
+            logo_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=QRIS",
+          },
+          {
+            id: "OVO",
+            name: "OVO",
+            logo_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=OVO",
+          },
+          {
+            id: "GOPAY",
+            name: "GoPay",
+            logo_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=GOPAY",
+          },
+          {
+            id: "DANA",
+            name: "DANA",
+            logo_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=DANA",
+          },
+        ]);
+      } finally {
+        setPaymentMethodsLoading(false);
+      }
+    };
+
     fetchUserAddress();
+    fetchPaymentMethods();
   }, [user]);
 
   const handleAddressSubmit = (address: ShippingAddress) => {
@@ -65,6 +132,55 @@ export default function CheckoutForm({
 
   const handleShippingSelect = (rate: ShippingRate) => {
     setSelectedShippingRate(rate);
+  };
+
+  const handlePaymentMethodSelect = (method: PaymentMethod) => {
+    setSelectedPaymentMethod(method);
+  };
+
+  const createOrder = async () => {
+    if (!user || !shippingAddress || !selectedShippingRate) return null;
+
+    try {
+      // Calculate total amount
+      const subtotal = product.price * quantity;
+      const shippingCost = selectedShippingRate.price;
+      const total = subtotal + shippingCost;
+
+      // Create order in database
+      const { data: orderData, error: orderError } = await supabase
+        .from("marketplace_orders")
+        .insert({
+          buyer_id: user.id,
+          seller_id: product.seller_id,
+          total_price: total,
+          status: "pending",
+          shipping_address: shippingAddress,
+          shipping_method: selectedShippingRate.service_type,
+          shipping_cost: shippingCost,
+          payment_method: selectedPaymentMethod,
+          items: [
+            {
+              product_id: product.id,
+              quantity: quantity,
+              price: product.price,
+              subtotal: subtotal,
+            },
+          ],
+        })
+        .select()
+        .single();
+
+      if (orderError) {
+        console.error("Error creating order:", orderError);
+        throw new Error(`Failed to create order: ${orderError.message}`);
+      }
+
+      return orderData;
+    } catch (error) {
+      console.error("Error in createOrder:", error);
+      throw error;
+    }
   };
 
   const handleCheckout = async () => {
@@ -98,23 +214,101 @@ export default function CheckoutForm({
 
     try {
       setProcessingOrder(true);
-      // Here you would create the order in your database
-      // For now, we'll just simulate a successful order
 
-      setTimeout(() => {
-        toast({
-          title: "Pesanan Berhasil",
-          description:
-            "Pesanan Anda telah berhasil dibuat. Silakan lakukan pembayaran.",
-        });
+      // Check if this is a Sambatan order
+      const sambatanId = new URLSearchParams(window.location.search).get(
+        "sambatanId",
+      );
+      const participantId = user.id;
 
-        if (onCheckoutComplete) {
-          onCheckoutComplete();
+      if (sambatanId) {
+        // This is a Sambatan order - check if we have optimized shipping
+        const { data: sambatan } = await supabase
+          .from("sambatan")
+          .select("product_id, initiator:initiator_id(shipping_city)")
+          .eq("id", sambatanId)
+          .single();
+
+        if (
+          sambatan &&
+          sambatan.product_id &&
+          sambatan.initiator?.shipping_city
+        ) {
+          // Get optimal shipping for this Sambatan
+          const { getOptimalSambatanShipping } = await import("@/lib/shipping");
+          const optimalShipping = await getOptimalSambatanShipping(
+            sambatanId,
+            sambatan.product_id,
+            sambatan.initiator.shipping_city,
+          );
+
+          // If this participant has an optimized rate and it's different from selected
+          if (
+            optimalShipping.participantRates[participantId] &&
+            optimalShipping.participantRates[participantId].id !==
+              selectedShippingRate.id
+          ) {
+            // Show recommendation to user
+            const optimalRate = optimalShipping.participantRates[participantId];
+            const savingAmount = selectedShippingRate.price - optimalRate.price;
+
+            if (savingAmount > 0) {
+              const useOptimalRate = window.confirm(
+                `Kami menemukan opsi pengiriman yang lebih hemat untuk Sambatan ini menggunakan ${optimalRate.provider?.name} ${optimalRate.service_type}. ` +
+                  `Anda dapat menghemat Rp${savingAmount.toLocaleString()} dengan opsi ini. Gunakan opsi yang direkomendasikan?`,
+              );
+
+              if (useOptimalRate) {
+                // Use the optimal rate instead
+                selectedShippingRate = optimalRate;
+              }
+            }
+          }
         }
+      }
 
-        // Redirect to payment page (this would be implemented later)
-        navigate("/marketplace/payment/123");
-      }, 1500);
+      // Create order in database
+      const order = await createOrder();
+
+      if (!order) {
+        throw new Error("Failed to create order");
+      }
+
+      // Calculate total amount
+      const subtotal = product.price * quantity;
+      const shippingCost = selectedShippingRate.price;
+      const total = subtotal + shippingCost;
+
+      // Generate QR payment
+      const paymentData = await generateQRPayment(
+        order.id,
+        total,
+        user.id,
+        selectedPaymentMethod,
+      );
+
+      // Set QR payment data for modal
+      setQRPaymentData({
+        orderId: order.id,
+        invoiceNumber: paymentData.invoiceNumber,
+        qrCodeUrl: paymentData.qrCodeUrl,
+        amount: total,
+        paymentMethod: selectedPaymentMethod,
+        expiryTime: paymentData.expiryTime,
+        transactionId: paymentData.transactionId,
+      });
+
+      // Open QR payment modal
+      setQRPaymentModalOpen(true);
+
+      toast({
+        title: "Pesanan Berhasil Dibuat",
+        description: "Silakan selesaikan pembayaran Anda.",
+      });
+
+      if (onCheckoutComplete) {
+        onCheckoutComplete();
+      }
     } catch (error) {
       console.error("Error processing order:", error);
       toast({
@@ -124,6 +318,14 @@ export default function CheckoutForm({
       });
     } finally {
       setProcessingOrder(false);
+    }
+  };
+
+  const handleQRPaymentModalClose = () => {
+    setQRPaymentModalOpen(false);
+    // Redirect to order tracking page
+    if (qrPaymentData?.orderId) {
+      navigate(`/marketplace/orders/${qrPaymentData.orderId}`);
     }
   };
 
@@ -219,15 +421,56 @@ export default function CheckoutForm({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="transfer">
+            <Tabs defaultValue="digital">
               <TabsList className="w-full">
+                <TabsTrigger value="digital" className="flex-1">
+                  <Smartphone className="h-4 w-4 mr-2" />
+                  Pembayaran Digital
+                </TabsTrigger>
                 <TabsTrigger value="transfer" className="flex-1">
+                  <CreditCard className="h-4 w-4 mr-2" />
                   Transfer Bank
                 </TabsTrigger>
-                <TabsTrigger value="qris" className="flex-1">
-                  QRIS
-                </TabsTrigger>
               </TabsList>
+
+              <TabsContent value="digital" className="pt-4">
+                {paymentMethodsLoading ? (
+                  <div className="flex justify-center py-4">
+                    <LoadingSpinner text="Memuat metode pembayaran..." />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {paymentMethods.map((method) => (
+                      <div
+                        key={method.id}
+                        className={`border rounded-md p-3 flex flex-col items-center cursor-pointer transition-all ${selectedPaymentMethod === method.id ? "border-purple-500 bg-purple-50" : "hover:border-gray-400"}`}
+                        onClick={() =>
+                          handlePaymentMethodSelect(method.id as PaymentMethod)
+                        }
+                      >
+                        <div className="w-12 h-12 mb-2">
+                          <img
+                            src={
+                              method.logo_url ||
+                              `https://api.dicebear.com/7.x/avataaars/svg?seed=${method.id}`
+                            }
+                            alt={method.name}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <span className="text-sm font-medium">
+                          {method.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-4 text-sm text-gray-500">
+                  Pembayaran digital memungkinkan Anda membayar langsung
+                  menggunakan aplikasi e-wallet atau mobile banking.
+                </div>
+              </TabsContent>
+
               <TabsContent value="transfer" className="pt-4">
                 <div className="space-y-4">
                   <div className="p-4 border rounded-md">
@@ -240,19 +483,6 @@ export default function CheckoutForm({
                   <div className="text-sm text-gray-500">
                     Setelah melakukan pembayaran, Anda perlu mengunggah bukti
                     pembayaran.
-                  </div>
-                </div>
-              </TabsContent>
-              <TabsContent value="qris" className="pt-4">
-                <div className="text-center space-y-4">
-                  <div className="bg-gray-100 p-8 rounded-md inline-block mx-auto">
-                    <div className="text-gray-400 text-center">
-                      [QR Code Placeholder]
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Scan QR code di atas menggunakan aplikasi e-wallet atau
-                    mobile banking Anda.
                   </div>
                 </div>
               </TabsContent>
@@ -329,6 +559,21 @@ export default function CheckoutForm({
           </CardContent>
         </Card>
       </div>
+
+      {/* QR Payment Modal */}
+      {qrPaymentData && (
+        <QRPaymentModal
+          open={qrPaymentModalOpen}
+          onClose={handleQRPaymentModalClose}
+          orderId={qrPaymentData.orderId}
+          invoiceNumber={qrPaymentData.invoiceNumber}
+          qrCodeUrl={qrPaymentData.qrCodeUrl}
+          amount={qrPaymentData.amount}
+          paymentMethod={qrPaymentData.paymentMethod}
+          expiryTime={qrPaymentData.expiryTime}
+          transactionId={qrPaymentData.transactionId}
+        />
+      )}
     </div>
   );
 }

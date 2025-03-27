@@ -10,10 +10,18 @@ import {
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ShippingRate } from "@/types/marketplace";
-import { getShippingRates } from "@/lib/shipping";
+import { MarketplaceProduct, ShippingRate } from "@/types/marketplace";
+import { calculateShippingCost, getShippingRates } from "@/lib/shipping";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Truck, Clock, Package } from "lucide-react";
 
 const shippingSchema = z.object({
   shippingRateId: z.string().min(1, "Pilih metode pengiriman"),
@@ -26,6 +34,8 @@ interface ShippingOptionsProps {
   destinationCity: string;
   onShippingSelect: (rate: ShippingRate) => void;
   selectedRateId?: string;
+  product?: MarketplaceProduct;
+  quantity?: number;
 }
 
 export default function ShippingOptions({
@@ -33,9 +43,12 @@ export default function ShippingOptions({
   destinationCity,
   onShippingSelect,
   selectedRateId,
+  product,
+  quantity = 1,
 }: ShippingOptionsProps) {
   const [loading, setLoading] = useState(true);
   const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
 
   const form = useForm<ShippingFormValues>({
     resolver: zodResolver(shippingSchema),
@@ -50,7 +63,22 @@ export default function ShippingOptions({
 
       try {
         setLoading(true);
-        const rates = await getShippingRates(originCity, destinationCity);
+        let rates: ShippingRate[];
+
+        // If product is provided, calculate shipping based on weight
+        if (product && product.id) {
+          rates = await calculateShippingCost(
+            product.id,
+            quantity,
+            originCity,
+            destinationCity,
+            product.weight,
+            selectedProvider || undefined,
+          );
+        } else {
+          rates = await getShippingRates(originCity, destinationCity);
+        }
+
         setShippingRates(rates);
 
         // If we have rates and no selected rate, select the first one by default
@@ -66,7 +94,16 @@ export default function ShippingOptions({
     };
 
     fetchShippingRates();
-  }, [originCity, destinationCity, selectedRateId, form, onShippingSelect]);
+  }, [
+    originCity,
+    destinationCity,
+    selectedRateId,
+    form,
+    onShippingSelect,
+    product,
+    quantity,
+    selectedProvider,
+  ]);
 
   const handleShippingChange = (rateId: string) => {
     const selectedRate = shippingRates.find((rate) => rate.id === rateId);
@@ -74,6 +111,29 @@ export default function ShippingOptions({
       onShippingSelect(selectedRate);
     }
   };
+
+  // Get unique providers from rates
+  const providers = shippingRates.reduce<Array<{ id: string; name: string }>>(
+    (acc, rate) => {
+      if (rate.provider && !acc.some((p) => p.id === rate.provider_id)) {
+        acc.push({
+          id: rate.provider_id,
+          name: rate.provider?.name || "Unknown",
+        });
+      }
+      return acc;
+    },
+    [],
+  );
+
+  const handleProviderChange = (providerId: string) => {
+    setSelectedProvider(providerId === "all" ? null : providerId);
+  };
+
+  // Filter rates by selected provider
+  const filteredRates = selectedProvider
+    ? shippingRates.filter((rate) => rate.provider_id === selectedProvider)
+    : shippingRates;
 
   if (loading) {
     return (
@@ -95,6 +155,31 @@ export default function ShippingOptions({
   return (
     <Form {...form}>
       <div className="space-y-4">
+        {/* Provider filter */}
+        {providers.length > 1 && (
+          <div className="mb-4">
+            <FormLabel className="text-sm font-medium mb-1 block">
+              Filter Kurir
+            </FormLabel>
+            <Select
+              value={selectedProvider || "all"}
+              onValueChange={handleProviderChange}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Semua Kurir" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Kurir</SelectItem>
+                {providers.map((provider) => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <FormField
           control={form.control}
           name="shippingRateId"
@@ -112,7 +197,7 @@ export default function ShippingOptions({
                   value={field.value}
                   className="space-y-2"
                 >
-                  {shippingRates.map((rate) => (
+                  {filteredRates.map((rate) => (
                     <div
                       key={rate.id}
                       className="flex items-center justify-between border rounded-md p-3 cursor-pointer hover:bg-gray-50"
@@ -126,9 +211,18 @@ export default function ShippingOptions({
                           >
                             {rate.provider?.name} - {rate.service_type}
                           </label>
-                          <span className="text-sm text-gray-500">
-                            Estimasi {rate.estimated_days} hari
-                          </span>
+                          <div className="flex items-center text-sm text-gray-500 mt-1 space-x-3">
+                            <span className="flex items-center">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Estimasi {rate.estimated_days} hari
+                            </span>
+                            {rate.weight && (
+                              <span className="flex items-center">
+                                <Package className="h-3 w-3 mr-1" />
+                                {(rate.weight / 1000).toFixed(1)} kg
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="font-medium text-purple-600">

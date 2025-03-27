@@ -8,11 +8,21 @@ import {
 } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Progress } from "../ui/progress";
-import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import {
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  RefreshCw,
+  Download,
+  Copy,
+} from "lucide-react";
 import {
   checkPaymentStatus,
   simulatePaymentCallback,
+  PaymentMethod,
 } from "../../lib/qrPayment";
+import { useToast } from "../ui/use-toast";
 
 interface QRPaymentModalProps {
   open: boolean;
@@ -21,6 +31,9 @@ interface QRPaymentModalProps {
   invoiceNumber: string;
   qrCodeUrl: string;
   amount: number;
+  paymentMethod?: PaymentMethod;
+  expiryTime?: string;
+  transactionId?: string;
 }
 
 export default function QRPaymentModal({
@@ -30,12 +43,17 @@ export default function QRPaymentModal({
   invoiceNumber,
   qrCodeUrl,
   amount,
+  paymentMethod = "QRIS",
+  expiryTime,
+  transactionId,
 }: QRPaymentModalProps) {
+  const { toast } = useToast();
   const [status, setStatus] = useState<"pending" | "paid" | "failed">(
     "pending",
   );
   const [timeLeft, setTimeLeft] = useState(900); // 15 minutes in seconds
   const [isPolling, setIsPolling] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Format time left as MM:SS
   const formatTimeLeft = () => {
@@ -45,6 +63,25 @@ export default function QRPaymentModal({
       .toString()
       .padStart(2, "0")}`;
   };
+
+  // Initialize timer based on expiry time if provided
+  useEffect(() => {
+    if (expiryTime) {
+      const expiryDate = new Date(expiryTime);
+      const now = new Date();
+      const diffInSeconds = Math.floor(
+        (expiryDate.getTime() - now.getTime()) / 1000,
+      );
+
+      if (diffInSeconds > 0) {
+        setTimeLeft(diffInSeconds);
+      } else {
+        setTimeLeft(0);
+        setStatus("failed");
+        setIsPolling(false);
+      }
+    }
+  }, [expiryTime]);
 
   // Poll for payment status
   useEffect(() => {
@@ -95,6 +132,7 @@ export default function QRPaymentModal({
         invoiceNumber,
         success ? "paid" : "failed",
         amount,
+        paymentMethod,
       );
       setStatus(success ? "paid" : "failed");
       setIsPolling(false);
@@ -103,20 +141,88 @@ export default function QRPaymentModal({
     }
   };
 
+  // Refresh QR code
+  const handleRefreshQR = async () => {
+    setIsRefreshing(true);
+    try {
+      // In a real implementation, you would call the API to refresh the QR code
+      // For now, we'll just simulate a refresh by waiting
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      toast({
+        title: "QR Code Diperbarui",
+        description: "QR code pembayaran telah diperbarui.",
+      });
+    } catch (error) {
+      console.error("Error refreshing QR code:", error);
+      toast({
+        title: "Gagal Memperbarui QR Code",
+        description: "Terjadi kesalahan saat memperbarui QR code.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Download QR code
+  const handleDownloadQR = () => {
+    const link = document.createElement("a");
+    link.href = qrCodeUrl;
+    link.download = `qris-payment-${invoiceNumber}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Copy transaction ID
+  const handleCopyTransactionId = () => {
+    if (transactionId) {
+      navigator.clipboard.writeText(transactionId);
+      toast({
+        title: "ID Transaksi Disalin",
+        description: "ID transaksi telah disalin ke clipboard.",
+      });
+    }
+  };
+
+  const getPaymentMethodTitle = () => {
+    switch (paymentMethod) {
+      case "OVO":
+        return "Pembayaran OVO";
+      case "GOPAY":
+        return "Pembayaran GoPay";
+      case "DANA":
+        return "Pembayaran DANA";
+      case "LINKAJA":
+        return "Pembayaran LinkAja";
+      case "SHOPEEPAY":
+        return "Pembayaran ShopeePay";
+      default:
+        return "Pembayaran QRIS";
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Pembayaran QRIS</DialogTitle>
+          <DialogTitle>{getPaymentMethodTitle()}</DialogTitle>
           <DialogDescription>
-            Scan QR code di bawah ini untuk melakukan pembayaran
+            {paymentMethod === "QRIS"
+              ? "Scan QR code di bawah ini untuk melakukan pembayaran"
+              : `Gunakan aplikasi ${paymentMethod} untuk menyelesaikan pembayaran`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col items-center space-y-4">
           {status === "pending" && (
             <>
-              <div className="border rounded-lg p-4 bg-white">
+              <div className="border rounded-lg p-4 bg-white relative">
+                {isRefreshing && (
+                  <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+                  </div>
+                )}
                 <img
                   src={qrCodeUrl}
                   alt="QR Code Pembayaran"
@@ -124,14 +230,45 @@ export default function QRPaymentModal({
                 />
               </div>
 
-              <div className="text-center">
+              <div className="flex space-x-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRefreshQR}
+                  disabled={isRefreshing}
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Refresh
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleDownloadQR}>
+                  <Download className="h-4 w-4 mr-1" />
+                  Download
+                </Button>
+              </div>
+
+              <div className="text-center w-full">
                 <p className="font-medium">Total Pembayaran</p>
                 <p className="text-2xl font-bold">
                   Rp {amount.toLocaleString("id-ID")}
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Invoice: {invoiceNumber}
-                </p>
+                <div className="flex flex-col space-y-1 mt-1">
+                  <p className="text-sm text-muted-foreground">
+                    Invoice: {invoiceNumber}
+                  </p>
+                  {transactionId && (
+                    <div className="flex items-center justify-center text-sm text-muted-foreground">
+                      <span className="truncate max-w-[180px]">
+                        ID: {transactionId}
+                      </span>
+                      <button
+                        onClick={handleCopyTransactionId}
+                        className="ml-1 p-1 hover:bg-gray-100 rounded"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="w-full space-y-2">
@@ -142,10 +279,66 @@ export default function QRPaymentModal({
                 <Progress value={(timeLeft / 900) * 100} className="h-2" />
               </div>
 
-              <p className="text-sm text-center text-muted-foreground">
-                Silakan scan QR code di atas menggunakan aplikasi e-wallet atau
-                mobile banking Anda
-              </p>
+              <Tabs defaultValue="instructions" className="w-full">
+                <TabsList className="w-full">
+                  <TabsTrigger value="instructions" className="flex-1">
+                    Instruksi
+                  </TabsTrigger>
+                  <TabsTrigger value="help" className="flex-1">
+                    Bantuan
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="instructions" className="pt-2">
+                  <div className="text-sm space-y-2">
+                    {paymentMethod === "QRIS" ? (
+                      <ol className="list-decimal pl-5 space-y-1">
+                        <li>Buka aplikasi e-wallet atau mobile banking Anda</li>
+                        <li>Pilih menu Scan QR atau QRIS</li>
+                        <li>Scan QR code di atas</li>
+                        <li>Periksa detail pembayaran dan konfirmasi</li>
+                        <li>Selesaikan pembayaran di aplikasi Anda</li>
+                      </ol>
+                    ) : (
+                      <ol className="list-decimal pl-5 space-y-1">
+                        <li>
+                          Buka aplikasi {paymentMethod} di smartphone Anda
+                        </li>
+                        <li>Pilih menu Pembayaran atau Pay</li>
+                        <li>
+                          Scan QR code di atas atau masukkan kode pembayaran
+                        </li>
+                        <li>Periksa detail pembayaran dan konfirmasi</li>
+                        <li>
+                          Selesaikan pembayaran di aplikasi {paymentMethod}
+                        </li>
+                      </ol>
+                    )}
+                  </div>
+                </TabsContent>
+                <TabsContent value="help" className="pt-2">
+                  <div className="text-sm space-y-2">
+                    <p>
+                      <strong>Pembayaran tidak muncul?</strong>
+                    </p>
+                    <p>
+                      Jika pembayaran Anda tidak terdeteksi secara otomatis:
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li>Pastikan Anda telah menyelesaikan pembayaran</li>
+                      <li>
+                        Klik tombol Refresh untuk memeriksa status terbaru
+                      </li>
+                      <li>
+                        Tunggu beberapa saat, terkadang dibutuhkan waktu untuk
+                        memproses pembayaran
+                      </li>
+                      <li>
+                        Jika masih bermasalah, hubungi customer service kami
+                      </li>
+                    </ul>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </>
           )}
 
@@ -158,6 +351,11 @@ export default function QRPaymentModal({
                   Terima kasih atas pembayaran Anda. Pesanan Anda sedang
                   diproses.
                 </p>
+                {transactionId && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    ID Transaksi: {transactionId}
+                  </p>
+                )}
               </div>
               <Button onClick={onClose} className="mt-4">
                 Kembali ke Pesanan

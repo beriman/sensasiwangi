@@ -12,6 +12,7 @@ export interface MarketplaceProduct {
   seller?: {
     full_name: string;
     avatar_url: string;
+    city?: string;
   };
   is_sambatan?: boolean;
   min_participants?: number;
@@ -58,8 +59,10 @@ export interface ShippingRate {
   origin_city: string;
   destination_city: string;
   service_type: string;
+  service_code?: string;
   price: number;
   estimated_days: number;
+  weight?: number;
   created_at: string;
   updated_at: string;
 }
@@ -72,6 +75,20 @@ export interface ShippingTrackingUpdate {
   location: string | null;
   timestamp: string;
   created_at: string;
+}
+
+export interface ShippingTrackingDetail {
+  tracking_number: string;
+  provider_code: string;
+  status: string;
+  estimated_delivery: string;
+  last_update: string;
+  updates: Array<{
+    timestamp: string;
+    status: string;
+    description: string;
+    location: string;
+  }>;
 }
 
 export interface ShippingAddress {
