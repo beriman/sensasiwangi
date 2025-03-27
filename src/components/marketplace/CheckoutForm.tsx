@@ -49,7 +49,7 @@ export default function CheckoutForm({
   const [addressLoading, setAddressLoading] = useState(true);
   const [shippingAddress, setShippingAddress] =
     useState<ShippingAddress | null>(null);
-  const [selectedShippingRate, setSelectedShippingRate] =
+  let [selectedShippingRate, setSelectedShippingRate] =
     useState<ShippingRate | null>(null);
   const [processingOrder, setProcessingOrder] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
