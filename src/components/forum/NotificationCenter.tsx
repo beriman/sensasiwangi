@@ -151,6 +151,13 @@ export default function NotificationCenter() {
           : `/forum/thread/${notification.thread_id}`;
       case "level_up":
         return `/profile`;
+      case "sambatan_joined":
+      case "sambatan_status":
+      case "sambatan_payment":
+      case "sambatan_created":
+        return notification.sambatan_id
+          ? `/marketplace/sambatan/${notification.sambatan_id}`
+          : `/marketplace`;
       default:
         return `/forum`;
     }
@@ -181,6 +188,30 @@ export default function NotificationCenter() {
         return (
           <div className="h-8 w-8 rounded-full bg-yellow-100 flex items-center justify-center">
             <span className="text-yellow-600 text-sm">⭐</span>
+          </div>
+        );
+      case "sambatan_joined":
+        return (
+          <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+            <span className="text-indigo-600 text-sm">👥</span>
+          </div>
+        );
+      case "sambatan_status":
+        return (
+          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+            <span className="text-blue-600 text-sm">🔔</span>
+          </div>
+        );
+      case "sambatan_payment":
+        return (
+          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+            <span className="text-green-600 text-sm">💰</span>
+          </div>
+        );
+      case "sambatan_created":
+        return (
+          <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center">
+            <span className="text-orange-600 text-sm">🛒</span>
           </div>
         );
       default:
@@ -236,6 +267,15 @@ export default function NotificationCenter() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFilter("level_up")}>
                   Level Up
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter("sambatan_joined")}>
+                  Sambatan Joined
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter("sambatan_status")}>
+                  Sambatan Status
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter("sambatan_payment")}>
+                  Sambatan Payment
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

@@ -112,9 +112,10 @@ export interface ForumNotification {
   id: string;
   user_id: string;
   message: string;
-  type: string; // 'reply', 'mention', 'vote', 'level_up', etc.
+  type: string; // 'reply', 'mention', 'vote', 'level_up', 'sambatan_joined', 'sambatan_status', 'sambatan_payment', etc.
   thread_id?: string;
   reply_id?: string;
+  sambatan_id?: string;
   read: boolean;
   created_at: string;
 }

@@ -16,9 +16,21 @@ import {
   MapPin,
   Truck,
   Shield,
+  Edit,
+  Trash,
 } from "lucide-react";
+import {
+  addToWishlist,
+  removeFromWishlist,
+  isProductWishlisted,
+  getProductReviews,
+  submitProductReview,
+  hasUserReviewedProduct,
+  deleteProductReview,
+  getProductRating,
+} from "@/lib/marketplace";
 import { getProduct } from "@/lib/marketplace";
-import { MarketplaceProduct } from "@/types/marketplace";
+import { MarketplaceProduct, ProductReview } from "@/types/marketplace";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAuth } from "../../../supabase/auth";
 import { useToast } from "@/components/ui/use-toast";
@@ -26,6 +38,26 @@ import { formatDistanceToNow } from "date-fns";
 import { id } from "date-fns/locale";
 import SambatanButton from "./SambatanButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+const reviewSchema = z.object({
+  rating: z.number().min(1).max(5),
+  reviewText: z.string().max(500).optional(),
+});
+
+type ReviewFormValues = z.infer<typeof reviewSchema>;
 
 export default function ProductDetail() {
   const { productId } = useParams<{ productId: string }>();
@@ -33,10 +65,25 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [isSambatan, setIsSambatan] = useState(false); // For demo purposes
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [userHasReviewed, setUserHasReviewed] = useState(false);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const form = useForm<ReviewFormValues>({
+    resolver: zodResolver(reviewSchema),
+    defaultValues: {
+      rating: 5,
+      reviewText: "",
+    },
+  });
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -45,6 +92,14 @@ export default function ProductDetail() {
       try {
         setLoading(true);
         const data = await getProduct(productId);
+
+        // Get product rating
+        if (data) {
+          const ratingData = await getProductRating(productId);
+          data.avg_rating = ratingData.avg_rating;
+          data.review_count = ratingData.review_count;
+        }
+
         setProduct(data);
 
         if (data) {
@@ -58,6 +113,12 @@ export default function ProductDetail() {
               // There's an active sambatan for this product
               setIsSambatan(true);
             }
+          }
+
+          // Check if product is wishlisted
+          if (user) {
+            const wishlisted = await isProductWishlisted(productId);
+            setIsWishlisted(wishlisted);
           }
         }
       } catch (error) {
@@ -73,7 +134,72 @@ export default function ProductDetail() {
     };
 
     fetchProduct();
-  }, [productId, toast]);
+  }, [productId, toast, user]);
+
+  useEffect(() => {
+    const fetchReviews = async () => {
+      if (!productId) return;
+
+      try {
+        setReviewsLoading(true);
+        const reviewsData = await getProductReviews(productId);
+        setReviews(reviewsData);
+
+        // Check if user has already reviewed this product
+        if (user) {
+          const hasReviewed = await hasUserReviewedProduct(productId);
+          setUserHasReviewed(hasReviewed);
+        }
+      } catch (error) {
+        console.error("Error fetching reviews:", error);
+      } finally {
+        setReviewsLoading(false);
+      }
+    };
+
+    fetchReviews();
+  }, [productId, user]);
+
+  const handleWishlistToggle = async () => {
+    if (!user) {
+      toast({
+        title: "Login Diperlukan",
+        description: "Silakan login untuk menambahkan ke wishlist.",
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
+    if (!product) return;
+
+    setWishlistLoading(true);
+    try {
+      if (isWishlisted) {
+        await removeFromWishlist(product.id);
+        toast({
+          title: "Berhasil",
+          description: "Produk dihapus dari wishlist.",
+        });
+      } else {
+        await addToWishlist(product.id);
+        toast({
+          title: "Berhasil",
+          description: "Produk ditambahkan ke wishlist.",
+        });
+      }
+      setIsWishlisted(!isWishlisted);
+    } catch (error) {
+      console.error("Error toggling wishlist:", error);
+      toast({
+        title: "Error",
+        description: "Gagal mengubah status wishlist. Silakan coba lagi.",
+        variant: "destructive",
+      });
+    } finally {
+      setWishlistLoading(false);
+    }
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -220,10 +346,16 @@ export default function ProductDetail() {
             <div className="flex items-center mb-4">
               <div className="flex items-center text-yellow-500">
                 <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-                <span className="ml-1 text-sm">4.9</span>
+                <span className="ml-1 text-sm">
+                  {product.avg_rating ? product.avg_rating.toFixed(1) : "0.0"}
+                </span>
               </div>
               <span className="mx-2 text-gray-300">|</span>
-              <span className="text-sm text-gray-500">50+ Terjual</span>
+              <span className="text-sm text-gray-500">
+                {product.review_count
+                  ? `${product.review_count} ulasan`
+                  : "Belum ada ulasan"}
+              </span>
               <span className="mx-2 text-gray-300">|</span>
               <span className="text-sm text-gray-500">
                 {formatDistanceToNow(new Date(product.created_at), {
@@ -245,11 +377,15 @@ export default function ProductDetail() {
                 <div className="flex-1">
                   <div className="flex items-center mb-1">
                     <MapPin className="h-4 w-4 text-gray-500 mr-1" />
-                    <span className="text-sm">Jakarta Pusat</span>
+                    <span className="text-sm">
+                      {product.seller?.city || "Jakarta Pusat"}
+                    </span>
                   </div>
                   <div className="flex items-center">
                     <Truck className="h-4 w-4 text-gray-500 mr-1" />
-                    <span className="text-sm">Reguler (2-3 hari)</span>
+                    <span className="text-sm">
+                      Tersedia beberapa pilihan kurir
+                    </span>
                   </div>
                 </div>
               </div>
@@ -309,9 +445,19 @@ export default function ProductDetail() {
 
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <Button variant="ghost" size="sm" className="text-gray-500">
-                  <Heart className="h-4 w-4 mr-1" />
-                  Wishlist
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`${isWishlisted ? "text-red-500" : "text-gray-500"}`}
+                  onClick={handleWishlistToggle}
+                  disabled={wishlistLoading}
+                >
+                  <Heart
+                    className={`h-4 w-4 mr-1 ${isWishlisted ? "fill-red-500" : ""}`}
+                  />
+                  {isWishlisted
+                    ? "Dihapus dari Wishlist"
+                    : "Tambah ke Wishlist"}
                 </Button>
                 <Button variant="ghost" size="sm" className="text-gray-500">
                   <Share2 className="h-4 w-4 mr-1" />
@@ -384,9 +530,234 @@ export default function ProductDetail() {
             </div>
           </TabsContent>
           <TabsContent value="reviews" className="p-4">
-            <div className="text-center py-8 text-gray-500">
-              <p>Belum ada ulasan untuk produk ini.</p>
-            </div>
+            {user && !userHasReviewed && (
+              <div className="mb-8 p-4 border border-gray-100 rounded-lg bg-gray-50">
+                <h3 className="text-lg font-medium mb-4">Berikan Ulasan</h3>
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit(async (values) => {
+                      if (!productId) return;
+
+                      try {
+                        setSubmittingReview(true);
+                        await submitProductReview(
+                          productId,
+                          selectedRating || values.rating,
+                          values.reviewText,
+                        );
+
+                        toast({
+                          title: "Berhasil",
+                          description:
+                            "Ulasan Anda telah dikirim. Terima kasih!",
+                        });
+
+                        // Refresh reviews
+                        const reviewsData = await getProductReviews(productId);
+                        setReviews(reviewsData);
+                        setUserHasReviewed(true);
+
+                        // Update product rating
+                        if (product) {
+                          const ratingData = await getProductRating(productId);
+                          setProduct({
+                            ...product,
+                            avg_rating: ratingData.avg_rating,
+                            review_count: ratingData.review_count,
+                          });
+                        }
+
+                        form.reset();
+                      } catch (error) {
+                        console.error("Error submitting review:", error);
+                        toast({
+                          title: "Error",
+                          description:
+                            "Gagal mengirim ulasan. Silakan coba lagi.",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setSubmittingReview(false);
+                      }
+                    })}
+                    className="space-y-4"
+                  >
+                    <div className="mb-4">
+                      <FormLabel>Rating</FormLabel>
+                      <div className="flex items-center mt-2">
+                        {[1, 2, 3, 4, 5].map((rating) => (
+                          <button
+                            key={rating}
+                            type="button"
+                            onClick={() => setSelectedRating(rating)}
+                            className="mr-1 focus:outline-none"
+                          >
+                            <Star
+                              className={`h-6 w-6 ${selectedRating >= rating ? "fill-yellow-500 text-yellow-500" : "text-gray-300"}`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="reviewText"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Ulasan (Opsional)</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Bagikan pengalaman Anda dengan produk ini..."
+                              className="resize-none"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button
+                      type="submit"
+                      className="w-full md:w-auto bg-purple-600 hover:bg-purple-700"
+                      disabled={submittingReview || selectedRating === 0}
+                    >
+                      {submittingReview ? "Mengirim..." : "Kirim Ulasan"}
+                    </Button>
+                  </form>
+                </Form>
+              </div>
+            )}
+
+            {reviewsLoading ? (
+              <div className="flex justify-center py-8">
+                <LoadingSpinner text="Memuat ulasan..." />
+              </div>
+            ) : reviews.length > 0 ? (
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium mb-4">
+                  Ulasan Produk ({reviews.length})
+                </h3>
+                {reviews.map((review) => (
+                  <div
+                    key={review.id}
+                    className="border-b border-gray-100 pb-6 mb-6 last:border-0"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start">
+                        <Avatar className="h-10 w-10 mr-3">
+                          <AvatarImage
+                            src={
+                              review.user?.avatar_url ||
+                              `https://api.dicebear.com/7.x/avataaars/svg?seed=${review.user_id}`
+                            }
+                            alt={review.user?.full_name || ""}
+                          />
+                          <AvatarFallback>
+                            {review.user?.full_name?.[0] || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {review.user?.full_name || "Pengguna"}
+                          </p>
+                          <div className="flex items-center mt-1">
+                            <div className="flex">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`h-4 w-4 ${star <= review.rating ? "fill-yellow-500 text-yellow-500" : "text-gray-300"}`}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-xs text-gray-500 ml-2">
+                              {formatDistanceToNow(
+                                new Date(review.created_at),
+                                {
+                                  addSuffix: true,
+                                  locale: id,
+                                },
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {user && user.id === review.user_id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={async () => {
+                            if (
+                              !window.confirm(
+                                "Apakah Anda yakin ingin menghapus ulasan ini?",
+                              )
+                            )
+                              return;
+
+                            try {
+                              await deleteProductReview(review.id);
+                              toast({
+                                title: "Berhasil",
+                                description: "Ulasan Anda telah dihapus.",
+                              });
+
+                              // Refresh reviews
+                              const reviewsData = await getProductReviews(
+                                productId || "",
+                              );
+                              setReviews(reviewsData);
+                              setUserHasReviewed(false);
+
+                              // Update product rating
+                              if (product && productId) {
+                                const ratingData =
+                                  await getProductRating(productId);
+                                setProduct({
+                                  ...product,
+                                  avg_rating: ratingData.avg_rating,
+                                  review_count: ratingData.review_count,
+                                });
+                              }
+                            } catch (error) {
+                              console.error("Error deleting review:", error);
+                              toast({
+                                title: "Error",
+                                description:
+                                  "Gagal menghapus ulasan. Silakan coba lagi.",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                        >
+                          <Trash className="h-4 w-4 mr-1" />
+                          Hapus
+                        </Button>
+                      )}
+                    </div>
+
+                    {review.review_text && (
+                      <div className="mt-3 text-gray-700 pl-13 ml-13">
+                        <p className="whitespace-pre-line">
+                          {review.review_text}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <p>Belum ada ulasan untuk produk ini.</p>
+                {user && !userHasReviewed && (
+                  <p className="mt-2">
+                    Jadilah yang pertama memberikan ulasan!
+                  </p>
+                )}
+              </div>
+            )}
           </TabsContent>
           <TabsContent value="discussion" className="p-4">
             <div className="text-center py-8 text-gray-500">

@@ -6,6 +6,7 @@ export interface MarketplaceProduct {
   price: number;
   image_url: string | null;
   status: "active" | "inactive" | "sold";
+  moderation_status?: "pending" | "approved" | "rejected";
   created_at: string;
   updated_at: string;
   seller?: {
@@ -15,6 +16,70 @@ export interface MarketplaceProduct {
   is_sambatan?: boolean;
   min_participants?: number;
   max_participants?: number;
+  is_wishlisted?: boolean;
+  avg_rating?: number;
+  review_count?: number;
+  weight?: number; // Product weight in grams
+  dimensions?: {
+    length: number;
+    width: number;
+    height: number;
+  };
+}
+
+export interface ProductReview {
+  id: string;
+  product_id: string;
+  user_id: string;
+  rating: number;
+  review_text: string | null;
+  created_at: string;
+  updated_at: string;
+  user?: {
+    full_name: string;
+    avatar_url: string;
+  };
+}
+
+export interface ShippingProvider {
+  id: string;
+  name: string;
+  code: string;
+  logo_url: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShippingRate {
+  id: string;
+  provider_id: string;
+  provider?: ShippingProvider;
+  origin_city: string;
+  destination_city: string;
+  service_type: string;
+  price: number;
+  estimated_days: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShippingTrackingUpdate {
+  id: string;
+  order_id: string;
+  status: string;
+  description: string | null;
+  location: string | null;
+  timestamp: string;
+  created_at: string;
+}
+
+export interface ShippingAddress {
+  address: string;
+  city: string;
+  province: string;
+  postal_code: string;
+  phone: string;
 }
 
 export interface SambatanParticipant {
@@ -41,6 +106,7 @@ export interface Sambatan {
   status: "open" | "closed" | "completed" | "cancelled";
   created_at: string;
   updated_at: string;
+  expires_at?: string;
   initiator?: {
     full_name: string;
     avatar_url: string;

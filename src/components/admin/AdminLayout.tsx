@@ -60,6 +60,15 @@ const AdminLayout = ({ children, activeTab }: AdminLayoutProps) => {
                 <TabsTrigger value="seasonal-events" className="px-4 py-2">
                   Seasonal Events
                 </TabsTrigger>
+                <TabsTrigger value="sambatan" className="px-4 py-2">
+                  Sambatan
+                </TabsTrigger>
+                <TabsTrigger value="products" className="px-4 py-2">
+                  Products
+                </TabsTrigger>
+                <TabsTrigger value="financial" className="px-4 py-2">
+                  Financial
+                </TabsTrigger>
                 <TabsTrigger value="statistics" className="px-4 py-2">
                   Statistics
                 </TabsTrigger>

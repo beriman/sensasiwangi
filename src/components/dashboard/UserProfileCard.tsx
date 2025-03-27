@@ -22,6 +22,11 @@ import {
   ThumbsUp,
   BarChart2,
   Trophy,
+  Star,
+  Package,
+  Users,
+  TrendingUp,
+  ShoppingCart,
 } from "lucide-react";
 import { useAuth } from "../../../supabase/auth";
 import { supabase } from "../../../supabase/supabase";
@@ -39,6 +44,7 @@ import {
 import SocialStats from "@/components/profile/SocialStats";
 import MessageButton from "@/components/messages/MessageButton";
 import FollowButton from "@/components/profile/FollowButton";
+import { getProductsBySeller } from "@/lib/marketplace";
 
 interface UserProfileData {
   username: string;
@@ -59,6 +65,20 @@ interface UserProfileData {
     given: number;
   };
   leaderboard_position?: number;
+  // Marketplace data
+  seller_info?: {
+    total_products: number;
+    active_products: number;
+    avg_rating: number;
+    review_count: number;
+    total_sales: number;
+  };
+  buyer_info?: {
+    total_purchases: number;
+    pending_orders: number;
+    completed_orders: number;
+    sambatan_participations: number;
+  };
 }
 
 // Reputation level calculation is now handled by the reputation.ts module
@@ -79,12 +99,96 @@ export default function UserProfileCard() {
       given: 0,
     },
     leaderboard_position: undefined,
+    seller_info: undefined,
+    buyer_info: undefined,
   });
   const [isUploading, setIsUploading] = useState(false);
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [bioText, setBioText] = useState("");
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverPhotoInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch seller information
+  const fetchSellerInfo = async (userId: string) => {
+    try {
+      // Get total products count
+      const { count: totalProducts } = await supabase
+        .from("marketplace_products")
+        .select("*", { count: "exact", head: true })
+        .eq("seller_id", userId);
+
+      // Get active products count
+      const { count: activeProducts } = await supabase
+        .from("marketplace_products")
+        .select("*", { count: "exact", head: true })
+        .eq("seller_id", userId)
+        .eq("status", "active");
+
+      // Get seller's average rating
+      const { data: ratingData } = await supabase
+        .rpc("get_seller_rating", { seller_id: userId })
+        .single();
+
+      // Get total sales count
+      const { count: totalSales } = await supabase
+        .from("marketplace_orders")
+        .select("*", { count: "exact", head: true })
+        .eq("seller_id", userId)
+        .eq("status", "completed");
+
+      return {
+        total_products: totalProducts || 0,
+        active_products: activeProducts || 0,
+        avg_rating: ratingData?.avg_rating || 0,
+        review_count: ratingData?.review_count || 0,
+        total_sales: totalSales || 0,
+      };
+    } catch (error) {
+      console.error("Error fetching seller info:", error);
+      return undefined;
+    }
+  };
+
+  // Fetch buyer information
+  const fetchBuyerInfo = async (userId: string) => {
+    try {
+      // Get total purchases count
+      const { count: totalPurchases } = await supabase
+        .from("marketplace_orders")
+        .select("*", { count: "exact", head: true })
+        .eq("buyer_id", userId);
+
+      // Get pending orders count
+      const { count: pendingOrders } = await supabase
+        .from("marketplace_orders")
+        .select("*", { count: "exact", head: true })
+        .eq("buyer_id", userId)
+        .in("status", ["pending", "processing", "shipped"]);
+
+      // Get completed orders count
+      const { count: completedOrders } = await supabase
+        .from("marketplace_orders")
+        .select("*", { count: "exact", head: true })
+        .eq("buyer_id", userId)
+        .eq("status", "completed");
+
+      // Get sambatan participations count
+      const { count: sambatanParticipations } = await supabase
+        .from("sambatan_participants")
+        .select("*", { count: "exact", head: true })
+        .eq("participant_id", userId);
+
+      return {
+        total_purchases: totalPurchases || 0,
+        pending_orders: pendingOrders || 0,
+        completed_orders: completedOrders || 0,
+        sambatan_participations: sambatanParticipations || 0,
+      };
+    } catch (error) {
+      console.error("Error fetching buyer info:", error);
+      return undefined;
+    }
+  };
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -161,6 +265,12 @@ export default function UserProfileCard() {
           }
         }
 
+        // Get seller information
+        const sellerInfo = await fetchSellerInfo(user.id);
+
+        // Get buyer information
+        const buyerInfo = await fetchBuyerInfo(user.id);
+
         setProfileData({
           username: userData?.username || user.email?.split("@")[0] || "User",
           full_name: userData?.full_name,
@@ -180,6 +290,8 @@ export default function UserProfileCard() {
             given: votesGiven || 0,
           },
           leaderboard_position: leaderboardPosition,
+          seller_info: sellerInfo,
+          buyer_info: buyerInfo,
         });
 
         setBioText(userData?.bio || "");
@@ -647,6 +759,136 @@ export default function UserProfileCard() {
                 </div>
               </div>
             </div>
+
+            {/* Marketplace Statistics Section */}
+            <h4 className="text-xs font-medium text-gray-500 mb-2">
+              Marketplace Statistics
+            </h4>
+
+            {/* Seller Information */}
+            {profileData.seller_info && (
+              <div className="mb-4">
+                <div className="flex items-center mb-2">
+                  <ShoppingBag className="h-4 w-4 mr-2 text-amber-500" />
+                  <h5 className="text-sm font-medium text-gray-700">
+                    Seller Information
+                  </h5>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-amber-50 p-3 rounded-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Package className="h-4 w-4 mr-2 text-amber-600" />
+                        <span className="text-sm font-medium">Products</span>
+                      </div>
+                      <span className="text-lg font-semibold text-gray-700">
+                        {profileData.seller_info.total_products}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex justify-between text-xs text-gray-500">
+                      <span>
+                        Active: {profileData.seller_info.active_products}
+                      </span>
+                      <span>Sales: {profileData.seller_info.total_sales}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-amber-50 p-3 rounded-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Star className="h-4 w-4 mr-2 text-amber-600" />
+                        <span className="text-sm font-medium">Rating</span>
+                      </div>
+                      <span className="text-lg font-semibold text-gray-700">
+                        {profileData.seller_info.avg_rating.toFixed(1)}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex justify-between text-xs text-gray-500">
+                      <span>
+                        From {profileData.seller_info.review_count} reviews
+                      </span>
+                      <span>
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <span
+                            key={i}
+                            className={
+                              i <
+                              Math.round(
+                                profileData.seller_info?.avg_rating || 0,
+                              )
+                                ? "text-amber-500"
+                                : "text-gray-300"
+                            }
+                          >
+                            ★
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Buyer Information */}
+            {profileData.buyer_info && (
+              <div className="mb-4">
+                <div className="flex items-center mb-2">
+                  <ShoppingCart className="h-4 w-4 mr-2 text-blue-500" />
+                  <h5 className="text-sm font-medium text-gray-700">
+                    Buyer Information
+                  </h5>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-blue-50 p-3 rounded-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Package className="h-4 w-4 mr-2 text-blue-600" />
+                        <span className="text-sm font-medium">Orders</span>
+                      </div>
+                      <span className="text-lg font-semibold text-gray-700">
+                        {profileData.buyer_info.total_purchases}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex justify-between text-xs text-gray-500">
+                      <span>
+                        Pending: {profileData.buyer_info.pending_orders}
+                      </span>
+                      <span>
+                        Completed: {profileData.buyer_info.completed_orders}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 p-3 rounded-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Users className="h-4 w-4 mr-2 text-blue-600" />
+                        <span className="text-sm font-medium">Sambatan</span>
+                      </div>
+                      <span className="text-lg font-semibold text-gray-700">
+                        {profileData.buyer_info.sambatan_participations}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-gray-500">
+                      <span>Group purchase participations</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!profileData.seller_info && !profileData.buyer_info && (
+              <div className="bg-gray-50 p-4 rounded-md text-center mb-4">
+                <TrendingUp className="h-5 w-5 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm text-gray-500">
+                  No marketplace activity yet
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Start buying or selling to see your statistics
+                </p>
+              </div>
+            )}
 
             <h4 className="text-xs font-medium text-gray-500 mb-2">
               Available Features

@@ -28,17 +28,29 @@ serve(async (req) => {
         "Missing Supabase credentials. Please check your environment variables.",
       );
 
-      // For development environment, provide a fallback to allow testing
-      // This is just for development purposes and should be removed in production
-      if (Deno.env.get("DENO_ENV") === "development") {
-        console.warn("Using fallback credentials for development environment");
-        supabaseUrl = "https://your-project-url.supabase.co";
-        supabaseAnonKey = "public-anon-key-for-development-only";
-      } else {
+      // Log available environment variables for debugging (without exposing sensitive values)
+      console.log("Available environment variables:", {
+        SUPABASE_URL: !!Deno.env.get("SUPABASE_URL"),
+        VITE_SUPABASE_URL: !!Deno.env.get("VITE_SUPABASE_URL"),
+        SUPABASE_ANON_KEY: !!Deno.env.get("SUPABASE_ANON_KEY"),
+        VITE_SUPABASE_ANON_KEY: !!Deno.env.get("VITE_SUPABASE_ANON_KEY"),
+        SUPABASE_SERVICE_KEY: !!Deno.env.get("SUPABASE_SERVICE_KEY"),
+      });
+
+      // Use project ID to construct URL if available
+      const projectId = Deno.env.get("SUPABASE_PROJECT_ID");
+      if (projectId && !supabaseUrl) {
+        supabaseUrl = `https://${projectId}.supabase.co`;
+        console.log(`Constructed URL from project ID: ${supabaseUrl}`);
+      }
+
+      // If still missing credentials after attempts to recover
+      if (!supabaseUrl || !supabaseAnonKey) {
         return new Response(
           JSON.stringify({
             error:
               "Supabase credentials not found. Please ensure SUPABASE_URL and SUPABASE_ANON_KEY are set in your project settings.",
+            projectIdAvailable: !!projectId,
           }),
           {
             headers: {

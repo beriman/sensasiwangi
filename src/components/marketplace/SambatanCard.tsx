@@ -4,7 +4,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ShoppingBag, Users } from "lucide-react";
+import { ShoppingBag, Users, Clock } from "lucide-react";
 import { Sambatan } from "@/types/marketplace";
 
 interface SambatanCardProps {
@@ -21,6 +21,10 @@ export default function SambatanCard({ sambatan }: SambatanCardProps) {
   };
 
   const progress = (sambatan.current_quantity / sambatan.target_quantity) * 100;
+
+  // Check if sambatan is expired
+  const isExpired =
+    sambatan.expires_at && new Date(sambatan.expires_at) < new Date();
 
   return (
     <Link to={`/marketplace/sambatan/${sambatan.id}`}>
@@ -40,12 +44,20 @@ export default function SambatanCard({ sambatan }: SambatanCardProps) {
           <div className="absolute top-2 right-2">
             <Badge
               className={
-                sambatan.status === "open"
+                sambatan.status === "open" && !isExpired
                   ? "bg-green-100 text-green-800"
-                  : "bg-yellow-100 text-yellow-800"
+                  : sambatan.status === "cancelled" || isExpired
+                    ? "bg-red-100 text-red-800"
+                    : "bg-yellow-100 text-yellow-800"
               }
             >
-              {sambatan.status === "open" ? "Terbuka" : "Tertutup"}
+              {sambatan.status === "open" && !isExpired
+                ? "Terbuka"
+                : sambatan.status === "cancelled"
+                  ? "Dibatalkan"
+                  : isExpired && sambatan.status === "open"
+                    ? "Kedaluwarsa"
+                    : "Tertutup"}
             </Badge>
           </div>
         </div>
@@ -77,6 +89,19 @@ export default function SambatanCard({ sambatan }: SambatanCardProps) {
                 {progress.toFixed(0)}%
               </span>
             </div>
+            {sambatan.expires_at && sambatan.status === "open" && (
+              <div className="flex items-center mt-1 text-xs text-yellow-600">
+                <Clock className="h-3 w-3 mr-1" />
+                <span>
+                  Berakhir{" "}
+                  {new Date(sambatan.expires_at).toLocaleDateString("id-ID", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </span>
+              </div>
+            )}
           </div>
         </CardContent>
         <CardFooter className="p-4 pt-0 flex items-center">

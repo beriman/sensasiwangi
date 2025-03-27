@@ -135,8 +135,13 @@ export async function createSambatan(
   initiatorId: string,
   productId: string,
   targetQuantity: number,
+  expirationDays: number = 7, // Default expiration of 7 days
 ): Promise<Sambatan> {
   await ensureSambatanTablesExist();
+
+  // Calculate expiration date
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + expirationDays);
 
   // First, update the product to mark it as a sambatan product if not already
   await supabase
@@ -152,6 +157,7 @@ export async function createSambatan(
       target_quantity: targetQuantity,
       current_quantity: 1, // Initiator counts as first participant
       status: "open",
+      expires_at: expiresAt.toISOString(),
     })
     .select()
     .single();
@@ -187,25 +193,31 @@ export async function joinSambatan(
 ): Promise<void> {
   await ensureSambatanTablesExist();
 
+  if (quantity <= 0) {
+    throw new Error("Jumlah item harus lebih dari 0");
+  }
+
   // First check if the sambatan is still open and has capacity
   const { data: sambatan, error: sambatanError } = await supabase
     .from("sambatan")
-    .select("*")
+    .select("*, product:product_id(name)")
     .eq("id", sambatanId)
     .eq("status", "open")
     .single();
 
   if (sambatanError) {
     console.error("Error fetching sambatan:", sambatanError);
-    throw sambatanError;
+    throw new Error("Gagal memuat data Sambatan. Silakan coba lagi.");
   }
 
   if (!sambatan) {
-    throw new Error("Sambatan not found or already closed");
+    throw new Error("Sambatan tidak ditemukan atau sudah ditutup");
   }
 
   if (sambatan.current_quantity + quantity > sambatan.target_quantity) {
-    throw new Error("Not enough slots available in this Sambatan");
+    throw new Error(
+      `Slot tidak cukup. Tersisa ${sambatan.target_quantity - sambatan.current_quantity} slot dari ${sambatan.target_quantity} total slot.`,
+    );
   }
 
   // Check if user is already a participant
@@ -217,11 +229,11 @@ export async function joinSambatan(
 
   if (participantError) {
     console.error("Error checking existing participant:", participantError);
-    throw participantError;
+    throw new Error("Gagal memeriksa partisipasi Anda. Silakan coba lagi.");
   }
 
   if (existingParticipant && existingParticipant.length > 0) {
-    throw new Error("You are already a participant in this Sambatan");
+    throw new Error("Anda sudah bergabung dengan Sambatan ini");
   }
 
   // Add participant
@@ -236,7 +248,7 @@ export async function joinSambatan(
 
   if (joinError) {
     console.error("Error joining sambatan:", joinError);
-    throw joinError;
+    throw new Error("Gagal bergabung dengan Sambatan. Silakan coba lagi.");
   }
 
   // Update current quantity
@@ -250,7 +262,31 @@ export async function joinSambatan(
 
   if (updateError) {
     console.error("Error updating sambatan quantity:", updateError);
-    throw updateError;
+    throw new Error(
+      "Gagal memperbarui jumlah peserta Sambatan. Silakan coba lagi.",
+    );
+  }
+
+  // Send notification via edge function
+  try {
+    await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send_sambatan_notification`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sambatanId,
+          eventType: "new_participant",
+          participantId,
+          productName: sambatan.product?.name,
+        }),
+      },
+    );
+  } catch (error) {
+    console.error("Error sending notification:", error);
+    // Don't throw here as the join was successful
   }
 
   // If sambatan is now full, close it
@@ -265,7 +301,27 @@ export async function joinSambatan(
 
     if (closeError) {
       console.error("Error closing sambatan:", closeError);
-      throw closeError;
+      // We don't throw here as the join was successful, just log the error
+    } else {
+      // Send quota reached notification
+      try {
+        await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send_sambatan_notification`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              sambatanId,
+              eventType: "quota_reached",
+              productName: sambatan.product?.name,
+            }),
+          },
+        );
+      } catch (error) {
+        console.error("Error sending quota reached notification:", error);
+      }
     }
   }
 }
@@ -276,6 +332,7 @@ export async function updatePaymentStatus(
   participantId: string,
   paymentStatus: "pending" | "verified" | "cancelled",
   paymentProof?: string,
+  paymentMethod?: string,
 ): Promise<void> {
   await ensureSambatanTablesExist();
 
@@ -288,6 +345,10 @@ export async function updatePaymentStatus(
     updateData.payment_proof = paymentProof;
   }
 
+  if (paymentMethod) {
+    updateData.payment_method = paymentMethod;
+  }
+
   const { error } = await supabase
     .from("sambatan_participants")
     .update(updateData)
@@ -296,7 +357,151 @@ export async function updatePaymentStatus(
 
   if (error) {
     console.error("Error updating payment status:", error);
-    throw error;
+    throw new Error("Gagal memperbarui status pembayaran. Silakan coba lagi.");
+  }
+
+  // If payment is verified and all participants have verified payments, update sambatan status
+  if (paymentStatus === "verified") {
+    await checkAndUpdateSambatanStatus(sambatanId);
+  }
+}
+
+// Verify payment as admin
+export async function verifyPayment(
+  sambatanId: string,
+  participantId: string,
+  isVerified: boolean,
+): Promise<void> {
+  await ensureSambatanTablesExist();
+
+  const status = isVerified ? "verified" : "cancelled";
+
+  await updatePaymentStatus(sambatanId, participantId, status);
+
+  // Get product name for notification
+  const { data: sambatan } = await supabase
+    .from("sambatan")
+    .select("product:product_id(name)")
+    .eq("id", sambatanId)
+    .single();
+
+  // Send payment verification notification
+  if (isVerified) {
+    try {
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send_sambatan_notification`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sambatanId,
+            eventType: "payment_verified",
+            participantId,
+            productName: sambatan?.product?.name,
+          }),
+        },
+      );
+    } catch (error) {
+      console.error("Error sending payment verification notification:", error);
+    }
+
+    // Check if all participants have verified payments
+    await checkAndUpdateSambatanStatus(sambatanId);
+  }
+}
+
+// Check if all participants have verified payments and update sambatan status
+async function checkAndUpdateSambatanStatus(sambatanId: string): Promise<void> {
+  const { data: sambatan, error: sambatanError } = await supabase
+    .from("sambatan")
+    .select("*, product:product_id(name)")
+    .eq("id", sambatanId)
+    .single();
+
+  if (sambatanError) {
+    console.error("Error fetching sambatan:", sambatanError);
+    return;
+  }
+
+  // Only proceed if sambatan is closed or open (with all slots filled)
+  if (sambatan.status !== "closed" && sambatan.status !== "open") {
+    return;
+  }
+
+  // Get all participants
+  const { data: participants, error: participantsError } = await supabase
+    .from("sambatan_participants")
+    .select("*")
+    .eq("sambatan_id", sambatanId);
+
+  if (participantsError) {
+    console.error("Error fetching participants:", participantsError);
+    return;
+  }
+
+  // Check if all participants have verified payments
+  const allVerified = participants.every(
+    (p) => p.payment_status === "verified",
+  );
+
+  // If sambatan is open but all slots are filled, close it first
+  if (
+    sambatan.status === "open" &&
+    sambatan.current_quantity >= sambatan.target_quantity
+  ) {
+    const { error: closeError } = await supabase
+      .from("sambatan")
+      .update({
+        status: "closed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", sambatanId);
+
+    if (closeError) {
+      console.error("Error closing sambatan:", closeError);
+      return;
+    }
+  }
+
+  if (allVerified) {
+    // Update sambatan status to completed
+    const { error: updateError } = await supabase
+      .from("sambatan")
+      .update({
+        status: "completed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", sambatanId);
+
+    if (updateError) {
+      console.error("Error updating sambatan status:", updateError);
+    } else {
+      console.log(
+        `Sambatan ${sambatanId} marked as completed - all payments verified`,
+      );
+
+      // Send sambatan completed notification
+      try {
+        await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send_sambatan_notification`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              sambatanId,
+              eventType: "sambatan_completed",
+              productName: sambatan.product?.name,
+            }),
+          },
+        );
+      } catch (error) {
+        console.error("Error sending sambatan completed notification:", error);
+      }
+    }
   }
 }
 
