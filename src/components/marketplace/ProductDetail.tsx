@@ -329,8 +329,14 @@ export default function ProductDetail() {
             )}
           </div>
           <div className="mt-3 flex space-x-2 overflow-x-auto pb-2">
-            {/* Thumbnail images would go here */}
-            <div className="w-20 h-20 border border-purple-500 rounded-md overflow-hidden flex-shrink-0">
+            {/* Main image thumbnail */}
+            <div
+              className="w-20 h-20 border border-purple-500 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
+              onClick={() => {
+                // Set main image display to this image
+                // This would be implemented with state in a full implementation
+              }}
+            >
               {product.image_url ? (
                 <img
                   src={product.image_url}
@@ -343,7 +349,25 @@ export default function ProductDetail() {
                 </div>
               )}
             </div>
-            {/* Additional thumbnails would be added here */}
+
+            {/* Additional image thumbnails */}
+            {product.additional_images &&
+              product.additional_images.map((imgUrl, index) => (
+                <div
+                  key={index}
+                  className="w-20 h-20 border border-gray-200 hover:border-purple-500 rounded-md overflow-hidden flex-shrink-0 cursor-pointer"
+                  onClick={() => {
+                    // Set main image display to this image
+                    // This would be implemented with state in a full implementation
+                  }}
+                >
+                  <img
+                    src={imgUrl}
+                    alt={`${product.name} ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ))}
           </div>
         </div>
 
@@ -542,8 +566,14 @@ export default function ProductDetail() {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="description" className="p-4">
-            <div className="prose max-w-none whitespace-pre-line">
-              {product.description || "Tidak ada deskripsi produk."}
+            <div className="prose max-w-none">
+              {product.description ? (
+                <div
+                  dangerouslySetInnerHTML={{ __html: product.description }}
+                />
+              ) : (
+                "Tidak ada deskripsi produk."
+              )}
             </div>
           </TabsContent>
           <TabsContent value="reviews" className="p-4">

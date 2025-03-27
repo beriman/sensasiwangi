@@ -1,18 +1,85 @@
 import { supabase } from "../../supabase/supabase";
 import { MarketplaceProduct } from "@/types/marketplace";
 
-// Get all active products
-export async function getProducts(): Promise<MarketplaceProduct[]> {
-  const { data, error } = await supabase
+// Get all active products with filtering options
+export async function getProducts(filters?: {
+  category?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  sortBy?: "newest" | "price_asc" | "price_desc" | "rating" | "popularity";
+  limit?: number;
+  offset?: number;
+}): Promise<MarketplaceProduct[]> {
+  let query = supabase
     .from("marketplace_products")
     .select(
       `
       *,
-      seller:seller_id(full_name, avatar_url)
+      seller:seller_id(full_name, avatar_url, city)
     `,
     )
-    .eq("status", "active")
-    .order("created_at", { ascending: false });
+    .eq("status", "active");
+
+  // Apply filters if provided
+  if (filters) {
+    if (filters.category) {
+      query = query.eq("category", filters.category);
+    }
+    if (filters.minPrice !== undefined) {
+      query = query.gte("price", filters.minPrice);
+    }
+    if (filters.maxPrice !== undefined) {
+      query = query.lte("price", filters.maxPrice);
+    }
+
+    // Apply sorting
+    if (filters.sortBy) {
+      switch (filters.sortBy) {
+        case "newest":
+          query = query.order("created_at", { ascending: false });
+          break;
+        case "price_asc":
+          query = query.order("price", { ascending: true });
+          break;
+        case "price_desc":
+          query = query.order("price", { ascending: false });
+          break;
+        case "rating":
+          // This requires a join or a view that includes average ratings
+          query = query.order("avg_rating", {
+            ascending: false,
+            nullsFirst: false,
+          });
+          break;
+        case "popularity":
+          // This would ideally use a view or function that calculates popularity
+          query = query.order("review_count", {
+            ascending: false,
+            nullsFirst: false,
+          });
+          break;
+        default:
+          query = query.order("created_at", { ascending: false });
+      }
+    } else {
+      query = query.order("created_at", { ascending: false });
+    }
+
+    // Apply pagination
+    if (filters.limit) {
+      query = query.limit(filters.limit);
+    }
+    if (filters.offset) {
+      query = query.range(
+        filters.offset,
+        filters.offset + (filters.limit || 10) - 1,
+      );
+    }
+  } else {
+    query = query.order("created_at", { ascending: false });
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
   return data || [];

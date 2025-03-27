@@ -5,6 +5,7 @@ export interface MarketplaceProduct {
   description: string | null;
   price: number;
   image_url: string | null;
+  additional_images?: string[];
   status: "active" | "inactive" | "sold";
   moderation_status?: "pending" | "approved" | "rejected";
   created_at: string;
@@ -26,6 +27,9 @@ export interface MarketplaceProduct {
     width: number;
     height: number;
   };
+  category?: string;
+  stock?: number;
+  condition?: "new" | "used";
 }
 
 export interface ProductReview {

@@ -123,6 +123,9 @@ export default function CheckoutForm({
       const shippingCost = selectedShippingRate.price;
       const total = subtotal + shippingCost;
 
+      // Generate unique invoice number
+      const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
       // Create order in database
       const { data: orderData, error: orderError } = await supabase
         .from("marketplace_orders")
@@ -135,6 +138,8 @@ export default function CheckoutForm({
           shipping_method: selectedShippingRate.service_type,
           shipping_cost: shippingCost,
           payment_method: selectedPaymentMethod,
+          invoice_number: invoiceNumber,
+          payment_status: "pending",
           items: [
             {
               product_id: product.id,
@@ -150,6 +155,20 @@ export default function CheckoutForm({
       if (orderError) {
         console.error("Error creating order:", orderError);
         throw new Error(`Failed to create order: ${orderError.message}`);
+      }
+
+      // Send notification to seller
+      try {
+        await supabase.functions.invoke("send_order_notification", {
+          body: {
+            orderId: orderData.id,
+            status: "new_order",
+            recipientId: product.seller_id,
+          },
+        });
+      } catch (notifError) {
+        console.error("Error sending notification:", notifError);
+        // Continue even if notification fails
       }
 
       return orderData;

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Upload, Loader2 } from "lucide-react";
+import { ArrowLeft, Upload, Loader2, Plus, X } from "lucide-react";
 import { getProduct, createProduct, updateProduct } from "@/lib/marketplace";
 import { MarketplaceProduct } from "@/types/marketplace";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -20,6 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
+import Typography from "@tiptap/extension-typography";
+import Placeholder from "@tiptap/extension-placeholder";
 
 export default function ProductForm({ mode }: { mode: "create" | "edit" }) {
   const { productId } = useParams<{ productId: string }>();
@@ -33,6 +39,9 @@ export default function ProductForm({ mode }: { mode: "create" | "edit" }) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [additionalImages, setAdditionalImages] = useState<
+    { file: File | null; preview: string; url?: string }[]
+  >([]);
   const [category, setCategory] = useState("parfum");
   const [stock, setStock] = useState("100");
   const [weight, setWeight] = useState("100");
@@ -40,6 +49,23 @@ export default function ProductForm({ mode }: { mode: "create" | "edit" }) {
   const [enableSambatan, setEnableSambatan] = useState(false);
   const [minParticipants, setMinParticipants] = useState("2");
   const [maxParticipants, setMaxParticipants] = useState("10");
+
+  // Rich text editor for product description
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Image,
+      Link,
+      Typography,
+      Placeholder.configure({
+        placeholder: "Tulis deskripsi produk yang detail di sini...",
+      }),
+    ],
+    content: description,
+    onUpdate: ({ editor }) => {
+      setDescription(editor.getHTML());
+    },
+  });
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -117,7 +143,10 @@ export default function ProductForm({ mode }: { mode: "create" | "edit" }) {
     }
   }, [mode, productId, user, toast, navigate]);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    isMainImage = true,
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -141,28 +170,42 @@ export default function ProductForm({ mode }: { mode: "create" | "edit" }) {
       return;
     }
 
-    setImageFile(file);
-
     // Create preview
     const reader = new FileReader();
     reader.onloadend = () => {
-      setImagePreview(reader.result as string);
+      const preview = reader.result as string;
+
+      if (isMainImage) {
+        setImageFile(file);
+        setImagePreview(preview);
+      } else {
+        setAdditionalImages([...additionalImages, { file, preview }]);
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  const uploadImage = async (): Promise<string | null> => {
-    if (!imageFile) return imageUrl; // Return existing URL if no new file
+  const handleRemoveAdditionalImage = (index: number) => {
+    const newImages = [...additionalImages];
+    newImages.splice(index, 1);
+    setAdditionalImages(newImages);
+  };
+
+  const uploadImage = async (file?: File): Promise<string | null> => {
+    if (!file && !imageFile) return imageUrl; // Return existing URL if no new file
+
+    const fileToUpload = file || imageFile;
+    if (!fileToUpload) return null;
 
     try {
       setUploadingImage(true);
-      const fileExt = imageFile.name.split(".").pop();
+      const fileExt = fileToUpload.name.split(".").pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
       const filePath = `marketplace/${user!.id}/${fileName}`;
 
       const { error: uploadError, data } = await supabase.storage
         .from("product-images")
-        .upload(filePath, imageFile);
+        .upload(filePath, fileToUpload);
 
       if (uploadError) throw uploadError;
 
@@ -180,6 +223,40 @@ export default function ProductForm({ mode }: { mode: "create" | "edit" }) {
         variant: "destructive",
       });
       return null;
+    } finally {
+      if (!file) setUploadingImage(false); // Only set to false if it's the main image upload
+    }
+  };
+
+  const uploadAllImages = async (): Promise<{
+    mainImage: string | null;
+    additionalImages: string[];
+  }> => {
+    try {
+      setUploadingImage(true);
+
+      // Upload main image
+      const mainImageUrl = await uploadImage();
+
+      // Upload additional images
+      const additionalImageUrls: string[] = [];
+
+      for (const img of additionalImages) {
+        if (img.file) {
+          const url = await uploadImage(img.file);
+          if (url) additionalImageUrls.push(url);
+        } else if (img.url) {
+          additionalImageUrls.push(img.url);
+        }
+      }
+
+      return {
+        mainImage: mainImageUrl,
+        additionalImages: additionalImageUrls,
+      };
+    } catch (error) {
+      console.error("Error uploading images:", error);
+      throw error;
     } finally {
       setUploadingImage(false);
     }
@@ -220,11 +297,11 @@ export default function ProductForm({ mode }: { mode: "create" | "edit" }) {
     try {
       setSubmitting(true);
 
-      // Upload image if there's a new one
-      let finalImageUrl = imageUrl;
-      if (imageFile) {
-        finalImageUrl = await uploadImage();
-      }
+      // Upload all images
+      const {
+        mainImage: finalImageUrl,
+        additionalImages: additionalImageUrls,
+      } = await uploadAllImages();
 
       // Prepare product data with new fields
       const productData = {
@@ -232,6 +309,7 @@ export default function ProductForm({ mode }: { mode: "create" | "edit" }) {
         description,
         price: Number(price),
         image_url: finalImageUrl,
+        additional_images: additionalImageUrls,
         category,
         stock: Number(stock),
         weight: Number(weight),
@@ -440,77 +518,180 @@ export default function ProductForm({ mode }: { mode: "create" | "edit" }) {
               >
                 Deskripsi
               </Label>
-              <Textarea
-                id="description"
-                placeholder="Deskripsi produk (opsional)"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={submitting}
-                className="min-h-[120px] w-full"
-              />
+              <div className="border rounded-md p-2 min-h-[200px] bg-white">
+                <EditorContent
+                  editor={editor}
+                  className="prose max-w-none min-h-[180px]"
+                />
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => editor?.chain().focus().toggleBold().run()}
+                  className={editor?.isActive("bold") ? "bg-gray-200" : ""}
+                >
+                  Bold
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => editor?.chain().focus().toggleItalic().run()}
+                  className={editor?.isActive("italic") ? "bg-gray-200" : ""}
+                >
+                  Italic
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    editor?.chain().focus().toggleBulletList().run()
+                  }
+                  className={
+                    editor?.isActive("bulletList") ? "bg-gray-200" : ""
+                  }
+                >
+                  Bullet List
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const url = window.prompt("Enter image URL");
+                    if (url) {
+                      editor?.chain().focus().setImage({ src: url }).run();
+                    }
+                  }}
+                >
+                  Add Image
+                </Button>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label
-                htmlFor="image"
-                className="text-sm font-medium text-gray-700"
-              >
-                Gambar Produk
-              </Label>
-              <div className="mt-1 flex items-center">
-                <label
-                  htmlFor="image-upload"
-                  className="cursor-pointer bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 flex items-center"
+            <div className="space-y-4">
+              <div>
+                <Label
+                  htmlFor="image"
+                  className="text-sm font-medium text-gray-700"
                 >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Pilih Gambar
-                </label>
-                <input
-                  id="image-upload"
-                  name="image-upload"
-                  type="file"
-                  className="sr-only"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  disabled={submitting}
-                />
-                <span className="ml-3 text-sm text-gray-500">
-                  {imageFile ? imageFile.name : "Belum ada file dipilih"}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500">
-                Format: JPG, PNG, GIF. Ukuran maksimal: 5MB
-              </p>
-
-              {imagePreview && (
-                <div className="mt-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">
-                    Preview:
-                  </p>
-                  <div className="relative w-40 h-40 overflow-hidden rounded-md border border-gray-200">
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="absolute top-2 right-2 h-6 w-6 p-0"
-                      onClick={() => {
-                        setImageFile(null);
-                        setImagePreview(null);
-                        if (mode === "edit") {
-                          setImageUrl(null);
-                        }
-                      }}
-                    >
-                      ×
-                    </Button>
-                  </div>
+                  Gambar Utama Produk
+                </Label>
+                <div className="mt-1 flex items-center">
+                  <label
+                    htmlFor="image-upload"
+                    className="cursor-pointer bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 flex items-center"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Pilih Gambar Utama
+                  </label>
+                  <input
+                    id="image-upload"
+                    name="image-upload"
+                    type="file"
+                    className="sr-only"
+                    accept="image/*"
+                    onChange={(e) => handleImageChange(e, true)}
+                    disabled={submitting}
+                  />
+                  <span className="ml-3 text-sm text-gray-500">
+                    {imageFile ? imageFile.name : "Belum ada file dipilih"}
+                  </span>
                 </div>
-              )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Format: JPG, PNG, GIF. Ukuran maksimal: 5MB
+                </p>
+
+                {imagePreview && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">
+                      Preview Gambar Utama:
+                    </p>
+                    <div className="relative w-40 h-40 overflow-hidden rounded-md border border-gray-200">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-2 right-2 h-6 w-6 p-0"
+                        onClick={() => {
+                          setImageFile(null);
+                          setImagePreview(null);
+                          if (mode === "edit") {
+                            setImageUrl(null);
+                          }
+                        }}
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t pt-4">
+                <div className="flex justify-between items-center mb-2">
+                  <Label className="text-sm font-medium text-gray-700">
+                    Gambar Tambahan (Maksimal 5)
+                  </Label>
+                  {additionalImages.length < 5 && (
+                    <div>
+                      <label
+                        htmlFor="additional-image-upload"
+                        className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Tambah Gambar
+                      </label>
+                      <input
+                        id="additional-image-upload"
+                        type="file"
+                        className="sr-only"
+                        accept="image/*"
+                        onChange={(e) => handleImageChange(e, false)}
+                        disabled={submitting || additionalImages.length >= 5}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {additionalImages.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mt-2">
+                    {additionalImages.map((img, index) => (
+                      <div
+                        key={index}
+                        className="relative w-full aspect-square overflow-hidden rounded-md border border-gray-200"
+                      >
+                        <img
+                          src={img.preview}
+                          alt={`Additional ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-2 right-2 h-6 w-6 p-0"
+                          onClick={() => handleRemoveAdditionalImage(index)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 italic">
+                    Belum ada gambar tambahan
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Sambatan Options */}

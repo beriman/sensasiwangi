@@ -136,8 +136,19 @@ const SellerOrderManagement = () => {
   const updateOrderStatus = async (orderId: string, status: string) => {
     try {
       // In a real implementation, this would update the database
-      // For demo purposes, we're just updating the local state
+      const { data, error } = await supabase
+        .from("marketplace_orders")
+        .update({
+          status: status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", orderId)
+        .select()
+        .single();
 
+      if (error) throw error;
+
+      // Update local state
       setOrders(
         orders.map((order) =>
           order.id === orderId
@@ -149,6 +160,20 @@ const SellerOrderManagement = () => {
             : order,
         ),
       );
+
+      // Send notification to buyer
+      try {
+        await supabase.functions.invoke("send_order_notification", {
+          body: {
+            orderId: orderId,
+            status: status,
+            recipientId: orders.find((o) => o.id === orderId)?.buyer_id,
+          },
+        });
+      } catch (notifError) {
+        console.error("Error sending notification:", notifError);
+        // Continue even if notification fails
+      }
 
       toast({
         title: "Order updated",
