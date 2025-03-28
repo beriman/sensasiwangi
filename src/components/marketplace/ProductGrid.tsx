@@ -3,6 +3,7 @@ import { getProducts } from "@/lib/marketplace";
 import { MarketplaceProduct } from "@/types/marketplace";
 import ProductCard from "./ProductCard";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { ShoppingBag } from "lucide-react";
 
 export default function ProductGrid() {
   const [products, setProducts] = useState<MarketplaceProduct[]>([]);
@@ -47,12 +48,14 @@ export default function ProductGrid() {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
       {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
+        <ProductCard
+          key={product.id}
+          product={product}
+          isSambatan={product.is_sambatan || false}
+        />
       ))}
     </div>
   );
 }
-
-import { ShoppingBag } from "lucide-react";

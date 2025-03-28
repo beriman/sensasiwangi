@@ -6,6 +6,9 @@ import TransactionsManagement from "../../admin/TransactionsManagement";
 import BadgesManagement from "../../admin/BadgesManagement";
 import StatisticsPanel from "../../admin/StatisticsPanel";
 import SeasonalEventsManagement from "../../admin/SeasonalEventsManagement";
+import SambatanManagement from "../../admin/SambatanManagement";
+import ProductModeration from "../../admin/ProductModeration";
+import FinancialReports from "../../admin/FinancialReports";
 
 const AdminPanel = () => {
   const { tab = "users" } = useParams<{ tab?: string }>();
@@ -16,6 +19,9 @@ const AdminPanel = () => {
     "transactions",
     "badges",
     "seasonal-events",
+    "sambatan",
+    "products",
+    "financial",
     "statistics",
   ];
   if (!validTabs.includes(tab)) {
@@ -28,6 +34,9 @@ const AdminPanel = () => {
       {tab === "transactions" && <TransactionsManagement />}
       {tab === "badges" && <BadgesManagement />}
       {tab === "seasonal-events" && <SeasonalEventsManagement />}
+      {tab === "sambatan" && <SambatanManagement />}
+      {tab === "products" && <ProductModeration />}
+      {tab === "financial" && <FinancialReports />}
       {tab === "statistics" && <StatisticsPanel />}
     </AdminLayout>
   );

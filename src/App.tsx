@@ -13,6 +13,7 @@ import Profile from "./components/pages/profile";
 import Settings from "./components/pages/settings";
 import Messages from "./components/pages/messages";
 import { AuthProvider, useAuth } from "../supabase/auth";
+import { SupabaseProvider } from "./lib/supabase-provider";
 import { Toaster } from "./components/ui/toaster";
 import { LoadingScreen, LoadingSpinner } from "./components/ui/loading-spinner";
 
@@ -52,6 +53,9 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <>
+      {/* Tempo routes should be rendered first */}
+      {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
+
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginForm />} />
@@ -104,20 +108,25 @@ function AppRoutes() {
             </PrivateRoute>
           }
         />
+        {/* Add tempobook route inside Routes */}
+        {import.meta.env.VITE_TEMPO === "true" && (
+          <Route path="/tempobook/*" element={<div />} />
+        )}
       </Routes>
-      {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
     </>
   );
 }
 
 function App() {
   return (
-    <AuthProvider>
-      <Suspense fallback={<LoadingScreen text="Loading application..." />}>
-        <AppRoutes />
-      </Suspense>
-      <Toaster />
-    </AuthProvider>
+    <SupabaseProvider>
+      <AuthProvider>
+        <Suspense fallback={<LoadingScreen text="Loading application..." />}>
+          <AppRoutes />
+        </Suspense>
+        <Toaster />
+      </AuthProvider>
+    </SupabaseProvider>
   );
 }
 

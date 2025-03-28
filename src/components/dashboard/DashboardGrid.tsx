@@ -17,10 +17,15 @@ import {
   ShoppingBag,
   TrendingUp,
   Activity,
+  UserPlus,
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { getForumStatistics } from "@/lib/forum";
 import { getProducts } from "@/lib/marketplace";
+import { getSambatans } from "@/lib/sambatan";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { supabase } from "../../../supabase/supabase";
 
 interface ProjectCardProps {
@@ -65,6 +70,25 @@ interface AnalyticsData {
       seller: {
         full_name: string;
       };
+    }>;
+  };
+  sambatanStats: {
+    totalSambatans: number;
+    activeSambatans: number;
+    completedSambatans: number;
+    activeSambatansList: Array<{
+      id: string;
+      product: {
+        name: string;
+        price: number;
+      };
+      initiator: {
+        full_name: string;
+      };
+      target_quantity: number;
+      current_quantity: number;
+      status: string;
+      expires_at?: string;
     }>;
   };
 }
@@ -234,6 +258,24 @@ const DashboardGrid = ({
         const products = await getProducts();
         const trendingProducts = products.slice(0, 5);
 
+        // Fetch sambatan statistics
+        const { count: totalSambatans } = await supabase
+          .from("sambatan")
+          .select("*", { count: "exact", head: true });
+
+        const { count: activeSambatans } = await supabase
+          .from("sambatan")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "open");
+
+        const { count: completedSambatans } = await supabase
+          .from("sambatan")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "completed");
+
+        // Fetch active sambatans list
+        const activeSambatansList = await getSambatans();
+
         setAnalyticsData({
           userStats: {
             totalUsers: totalUsers || 0,
@@ -259,6 +301,12 @@ const DashboardGrid = ({
             totalTransactions: totalTransactions || 0,
             pendingTransactions: pendingTransactions || 0,
             trendingProducts: trendingProducts || [],
+          },
+          sambatanStats: {
+            totalSambatans: totalSambatans || 0,
+            activeSambatans: activeSambatans || 0,
+            completedSambatans: completedSambatans || 0,
+            activeSambatansList: activeSambatansList.slice(0, 5) || [],
           },
         });
       } catch (error) {
@@ -405,6 +453,38 @@ const DashboardGrid = ({
           </CardContent>
         </Card>
 
+        {/* Sambatan Analytics Card */}
+        <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-lg font-medium flex items-center text-purple-600">
+              <UserPlus className="h-5 w-5 mr-2" />
+              Sambatan
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-3xl font-bold">
+                  {analyticsData?.sambatanStats.totalSambatans || 0}
+                </p>
+                <p className="text-sm text-gray-500">Total</p>
+              </div>
+              <div>
+                <p className="text-3xl font-bold">
+                  {analyticsData?.sambatanStats.activeSambatans || 0}
+                </p>
+                <p className="text-sm text-gray-500">Aktif</p>
+              </div>
+              <div>
+                <p className="text-3xl font-bold">
+                  {analyticsData?.sambatanStats.completedSambatans || 0}
+                </p>
+                <p className="text-sm text-gray-500">Selesai</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Popular Threads Card */}
         <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl shadow-sm overflow-hidden md:col-span-2 lg:col-span-2">
           <CardHeader>
@@ -495,6 +575,126 @@ const DashboardGrid = ({
                         className="px-4 py-2 text-center text-sm text-gray-500"
                       >
                         No products found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Active Sambatan Card */}
+        <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl shadow-sm overflow-hidden md:col-span-2 lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center">
+                <UserPlus className="h-5 w-5 mr-2 text-purple-600" />
+                Sambatan Aktif
+              </CardTitle>
+              <CardDescription>
+                Patungan yang sedang berlangsung
+              </CardDescription>
+            </div>
+            <Link to="/marketplace/sambatan">
+              <Button variant="outline" size="sm">
+                Lihat Semua
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2">Produk</th>
+                    <th className="px-4 py-2">Inisiator</th>
+                    <th className="px-4 py-2">Progress</th>
+                    <th className="px-4 py-2">Status</th>
+                    <th className="px-4 py-2">Berakhir Pada</th>
+                    <th className="px-4 py-2">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {analyticsData?.sambatanStats.activeSambatansList.map(
+                    (sambatan) => {
+                      const progress =
+                        (sambatan.current_quantity / sambatan.target_quantity) *
+                        100;
+                      const isExpired =
+                        sambatan.expires_at &&
+                        new Date(sambatan.expires_at) < new Date();
+
+                      return (
+                        <tr key={sambatan.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-2 text-sm font-medium">
+                            {sambatan.product.name}
+                          </td>
+                          <td className="px-4 py-2 text-sm">
+                            {sambatan.initiator?.full_name || "Unknown"}
+                          </td>
+                          <td className="px-4 py-2 text-sm">
+                            <div className="w-full max-w-[100px]">
+                              <div className="flex justify-between text-xs mb-1">
+                                <span>
+                                  {sambatan.current_quantity}/
+                                  {sambatan.target_quantity}
+                                </span>
+                                <span>{progress.toFixed(0)}%</span>
+                              </div>
+                              <Progress value={progress} className="h-2" />
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-sm">
+                            <Badge
+                              className={
+                                sambatan.status === "open" && !isExpired
+                                  ? "bg-green-100 text-green-800"
+                                  : sambatan.status === "cancelled" || isExpired
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-yellow-100 text-yellow-800"
+                              }
+                            >
+                              {sambatan.status === "open" && !isExpired
+                                ? "Terbuka"
+                                : sambatan.status === "cancelled"
+                                  ? "Dibatalkan"
+                                  : isExpired && sambatan.status === "open"
+                                    ? "Kedaluwarsa"
+                                    : "Tertutup"}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-2 text-sm">
+                            {sambatan.expires_at
+                              ? new Date(
+                                  sambatan.expires_at,
+                                ).toLocaleDateString("id-ID", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "-"}
+                          </td>
+                          <td className="px-4 py-2 text-sm">
+                            <Link to={`/marketplace/sambatan/${sambatan.id}`}>
+                              <Button variant="ghost" size="sm">
+                                Detail
+                              </Button>
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    },
+                  )}
+                  {(!analyticsData?.sambatanStats.activeSambatansList ||
+                    analyticsData.sambatanStats.activeSambatansList.length ===
+                      0) && (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-4 py-2 text-center text-sm text-gray-500"
+                      >
+                        Tidak ada Sambatan aktif saat ini
                       </td>
                     </tr>
                   )}

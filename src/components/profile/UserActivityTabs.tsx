@@ -6,6 +6,7 @@ import UserLapakActivity from "./activity/UserLapakActivity";
 import UserBookmarks from "./activity/UserBookmarks";
 import UserHistory from "./activity/UserHistory";
 import UserReviews from "./activity/UserReviews";
+import UserSambatanHistory from "./activity/UserSambatanHistory";
 
 interface UserActivityTabsProps {
   userId: string;
@@ -21,10 +22,11 @@ export default function UserActivityTabs({
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-3 md:grid-cols-6 w-full mb-4">
+        <TabsList className="grid grid-cols-3 md:grid-cols-7 w-full mb-4">
           <TabsTrigger value="forum">Forum</TabsTrigger>
           <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
           {isOwnProfile && <TabsTrigger value="lapak">My Shop</TabsTrigger>}
+          <TabsTrigger value="sambatan">Sambatan</TabsTrigger>
           <TabsTrigger value="bookmarks">Bookmarks</TabsTrigger>
           {isOwnProfile && <TabsTrigger value="history">History</TabsTrigger>}
           <TabsTrigger value="reviews">Reviews</TabsTrigger>
@@ -43,6 +45,10 @@ export default function UserActivityTabs({
             <UserLapakActivity userId={userId} />
           </TabsContent>
         )}
+
+        <TabsContent value="sambatan" className="mt-2">
+          <UserSambatanHistory userId={userId} isOwnProfile={isOwnProfile} />
+        </TabsContent>
 
         <TabsContent value="bookmarks" className="mt-2">
           <UserBookmarks userId={userId} isOwnProfile={isOwnProfile} />
