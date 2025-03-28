@@ -8,6 +8,10 @@ import Success from "./components/pages/success";
 import Home from "./components/pages/home";
 import Forum from "./components/pages/forum";
 import Marketplace from "./components/pages/marketplace";
+import MarketplaceHome from "./components/marketplace/MarketplaceHome";
+import MyShop from "./components/marketplace/MyShop";
+import ProductDetail from "./components/marketplace/ProductDetail";
+import ProductForm from "./components/marketplace/ProductForm";
 import AdminPanel from "./components/pages/admin";
 import Profile from "./components/pages/profile";
 import Settings from "./components/pages/settings";
@@ -75,6 +79,35 @@ function AppRoutes() {
         />
         <Route path="/success" element={<Success />} />
         <Route path="/forum/*" element={<Forum />} />
+        <Route path="/marketplace" element={<MarketplaceHome />} />
+        <Route
+          path="/marketplace/product/:productId"
+          element={<ProductDetail />}
+        />
+        <Route
+          path="/marketplace/my-shop"
+          element={
+            <PrivateRoute>
+              <MyShop />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/marketplace/my-shop/new"
+          element={
+            <PrivateRoute>
+              <ProductForm mode="create" />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/marketplace/my-shop/edit/:productId"
+          element={
+            <PrivateRoute>
+              <ProductForm mode="edit" />
+            </PrivateRoute>
+          }
+        />
         <Route path="/marketplace/*" element={<Marketplace />} />
         <Route
           path="/admin/:tab?"

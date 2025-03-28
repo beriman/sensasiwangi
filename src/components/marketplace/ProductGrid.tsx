@@ -4,10 +4,12 @@ import { MarketplaceProduct } from "@/types/marketplace";
 import ProductCard from "./ProductCard";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { ShoppingBag } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function ProductGrid() {
   const [products, setProducts] = useState<MarketplaceProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -17,6 +19,11 @@ export default function ProductGrid() {
         setProducts(data);
       } catch (error) {
         console.error("Error fetching products:", error);
+        toast({
+          title: "Error",
+          description: "Gagal memuat produk. Silakan coba lagi.",
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }

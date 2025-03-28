@@ -1,6 +1,6 @@
 import React, { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Droplet, ShoppingBag } from "lucide-react";
+import { Droplet, ShoppingBag, ShoppingCart } from "lucide-react";
 import { useAuth } from "../../../supabase/auth";
 
 interface MarketplaceLayoutProps {
@@ -54,7 +54,16 @@ export default function MarketplaceLayout({
             >
               Dashboard
             </Link>
-            {!user && (
+            {user ? (
+              <div className="flex items-center space-x-3">
+                <Link to="/marketplace/cart" className="relative">
+                  <ShoppingCart className="h-5 w-5 text-gray-700 hover:text-purple-600" />
+                  <span className="absolute -top-1 -right-1 bg-purple-600 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                    0
+                  </span>
+                </Link>
+              </div>
+            ) : (
               <Link to="/login">
                 <button className="rounded-full bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:opacity-90 text-sm px-4 py-2">
                   Sign In

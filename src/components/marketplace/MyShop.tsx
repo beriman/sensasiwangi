@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingBag, Plus, Edit, Trash2 } from "lucide-react";
 import { getProductsBySeller, deleteProduct } from "@/lib/marketplace";
+import { supabase } from "../../../supabase/supabase";
 import { MarketplaceProduct } from "@/types/marketplace";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAuth } from "../../../supabase/auth";
@@ -45,7 +46,20 @@ export default function MyShop() {
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        const data = await getProductsBySeller(user.id);
+        // Check if getProductsBySeller is available, otherwise fallback to direct query
+        let data;
+        try {
+          data = await getProductsBySeller(user.id);
+        } catch (e) {
+          // Fallback to direct query if function not available
+          const { data: productsData, error } = await supabase
+            .from("marketplace_products")
+            .select("*")
+            .eq("seller_id", user.id);
+
+          if (error) throw error;
+          data = productsData || [];
+        }
         setProducts(data);
       } catch (error) {
         console.error("Error fetching products:", error);
