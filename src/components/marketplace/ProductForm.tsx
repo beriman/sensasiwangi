@@ -444,6 +444,11 @@ export default function ProductForm({ mode }: { mode: "create" | "edit" }) {
                     <SelectItem value="parfum">Parfum Jadi</SelectItem>
                     <SelectItem value="bahan">Bahan Baku</SelectItem>
                     <SelectItem value="alat">Alat Perfumery</SelectItem>
+                    <SelectItem value="finished_product">
+                      Finished Product
+                    </SelectItem>
+                    <SelectItem value="raw_material">Raw Material</SelectItem>
+                    <SelectItem value="fine_parfume">Fine Parfume</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
