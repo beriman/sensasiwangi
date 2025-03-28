@@ -22,7 +22,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
                 <path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"></path>
               </svg>
               <span className="bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent font-bold">
-                Sensasiwangi
+                sensasiwangi.id
               </span>
             </Link>
           </div>
@@ -50,7 +50,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         <div className="max-w-md w-full px-4">
           <div className="text-center mb-8">
             <h2 className="text-4xl font-semibold tracking-tight bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">
-              Sensasiwangi
+              sensasiwangi.id
             </h2>
             <p className="text-xl font-medium text-gray-500 mt-2">
               Community Platform for Perfumers

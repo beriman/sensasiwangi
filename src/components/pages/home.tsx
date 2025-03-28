@@ -37,7 +37,7 @@ export default function LandingPage() {
             <Link to="/" className="font-medium text-xl flex items-center">
               <Droplet className="h-6 w-6 mr-2 text-purple-600" />
               <span className="bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent font-bold">
-                Scentrium
+                sensasiwangi.id
               </span>
             </Link>
           </div>
@@ -133,10 +133,11 @@ export default function LandingPage() {
               Community Platform
             </Badge>
             <h2 className="text-5xl md:text-6xl font-bold tracking-tight mb-4 bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">
-              Scentrium
+              sensasiwangi.id
             </h2>
             <h3 className="text-2xl font-medium text-gray-600 mb-6 max-w-3xl mx-auto">
-              The ultimate community platform for perfume enthusiasts and creators TEST
+              The ultimate community platform for perfume enthusiasts and
+              creators
             </h3>
             <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-6 text-xl">
               <Link to="/signup">
@@ -182,7 +183,7 @@ export default function LandingPage() {
               Platform Features
             </Badge>
             <h2 className="text-4xl font-bold tracking-tight mb-2">
-              Discover the Scentrium Experience
+              Discover the sensasiwangi.id Experience
             </h2>
             <h3 className="text-xl font-medium text-gray-600 mb-12 max-w-3xl mx-auto">
               A complete ecosystem for perfume enthusiasts with gamified
@@ -487,7 +488,7 @@ export default function LandingPage() {
               <h4 className="font-bold text-lg mb-4 flex items-center">
                 <Droplet className="h-5 w-5 mr-2 text-purple-400" />
                 <span className="bg-gradient-to-r from-purple-400 to-pink-300 bg-clip-text text-transparent">
-                  Scentrium
+                  sensasiwangi.id
                 </span>
               </h4>
               <p className="text-gray-400 mb-4">
@@ -615,7 +616,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="pt-8 text-center text-gray-400">
-            <p>© 2024 Scentrium. All rights reserved.</p>
+            <p>© 2024 sensasiwangi.id. All rights reserved.</p>
           </div>
         </div>
       </footer>

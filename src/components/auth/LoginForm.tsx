@@ -24,7 +24,7 @@ export default function LoginForm() {
       await signIn(email, password);
       toast({
         title: "Login successful",
-        description: "Welcome back to Scentrium!",
+        description: "Welcome back to Sensasiwangi.id!",
         duration: 3000,
       });
       navigate("/dashboard");
