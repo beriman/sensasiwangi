@@ -1,23 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../../supabase/auth";
-import { supabase } from "../../../supabase/supabase";
-import {
-  getUserConversations,
-  getConversationMessages,
-  sendMessage,
-  createConversation,
-  markConversationAsRead,
-} from "@/lib/messages";
-import { PrivateConversation, PrivateMessage } from "@/types/messages";
+import { useConversation } from "@/contexts/ConversationContext";
+import { PrivateConversation } from "@/types/messages";
 import ConversationList from "./ConversationList";
 import MessageList from "./MessageList";
 import MessageComposer from "./MessageComposer";
 import NewConversationDialog from "./NewConversationDialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Info } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import OnlineStatusIndicator from "./OnlineStatusIndicator";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function MessagesLayout() {
@@ -26,13 +21,19 @@ export default function MessagesLayout() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [conversations, setConversations] = useState<PrivateConversation[]>([]);
-  const [selectedConversation, setSelectedConversation] =
-    useState<PrivateConversation | null>(null);
-  const [messages, setMessages] = useState<PrivateMessage[]>([]);
-  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const {
+    conversations,
+    selectedConversation,
+    messages,
+    isLoadingConversations,
+    isLoadingMessages,
+    isSendingMessage,
+    selectConversation,
+    createConversation,
+    sendMessage,
+    markConversationAsRead,
+  } = useConversation();
+
   const [showNewConversationDialog, setShowNewConversationDialog] =
     useState(false);
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
@@ -56,165 +57,35 @@ export default function MessagesLayout() {
     return () => window.removeEventListener("resize", handleResize);
   }, [conversationId]);
 
-  // Load conversations
-  useEffect(() => {
-    if (!user) return;
-
-    const loadConversations = async () => {
-      try {
-        setIsLoadingConversations(true);
-        const data = await getUserConversations(user.id);
-        setConversations(data);
-      } catch (error) {
-        console.error("Error loading conversations:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load conversations",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoadingConversations(false);
-      }
-    };
-
-    loadConversations();
-
-    // Set up real-time subscription for new messages
-    const subscription = supabase
-      .channel("private_messages_channel")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "private_messages",
-        },
-        (payload) => {
-          const newMessage = payload.new as PrivateMessage;
-          // If the message is for the current conversation, add it to the messages
-          if (
-            selectedConversation &&
-            newMessage.conversation_id === selectedConversation.id
-          ) {
-            // Fetch the sender details
-            supabase
-              .from("users")
-              .select("id, full_name, avatar_url, username")
-              .eq("id", newMessage.sender_id)
-              .single()
-              .then(({ data }) => {
-                if (data) {
-                  setMessages((prev) => [
-                    {
-                      ...newMessage,
-                      sender: data,
-                    },
-                    ...prev,
-                  ]);
-                }
-              });
-
-            // Mark as read if the sender is not the current user
-            if (newMessage.sender_id !== user.id) {
-              markConversationAsRead(newMessage.conversation_id, user.id);
-            }
-          }
-
-          // Refresh conversations to update last message and unread count
-          getUserConversations(user.id).then((data) => {
-            setConversations(data);
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(subscription);
-    };
-  }, [user, selectedConversation, toast]);
-
   // Load conversation if ID is provided in URL
   useEffect(() => {
     if (conversationId && user) {
       const conversation = conversations.find((c) => c.id === conversationId);
       if (conversation) {
-        handleSelectConversation(conversation);
+        selectConversation(conversation);
         if (isMobileView) {
           setShowConversationList(false);
         }
       }
     }
-  }, [conversationId, conversations, user, isMobileView]);
-
-  const loadMessages = async (conversationId: string) => {
-    if (!user) return;
-
-    try {
-      setIsLoadingMessages(true);
-      const messages = await getConversationMessages(conversationId);
-      setMessages(messages);
-
-      // Mark conversation as read
-      await markConversationAsRead(conversationId, user.id);
-
-      // Update conversations to reflect read status
-      const updatedConversations = await getUserConversations(user.id);
-      setConversations(updatedConversations);
-    } catch (error) {
-      console.error("Error loading messages:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load messages",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingMessages(false);
-    }
-  };
+  }, [conversationId, conversations, user, isMobileView, selectConversation]);
 
   const handleSelectConversation = (conversation: PrivateConversation) => {
-    setSelectedConversation(conversation);
-    loadMessages(conversation.id);
-    navigate(`/messages/${conversation.id}`);
+    selectConversation(conversation);
+    if (isMobileView) {
+      setShowConversationList(false);
+    }
   };
 
-  const handleSendMessage = async (content: string) => {
-    if (!user || !selectedConversation) return;
-
-    try {
-      setIsSendingMessage(true);
-      await sendMessage(selectedConversation.id, user.id, content);
-      // The real-time subscription will handle updating the messages
-    } catch (error) {
-      console.error("Error sending message:", error);
-      toast({
-        title: "Error",
-        description: "Failed to send message",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSendingMessage(false);
-    }
+  const handleSendMessage = (content: string) => {
+    sendMessage(content);
   };
 
   const handleCreateConversation = async (userId: string) => {
-    if (!user) return;
-
-    try {
-      const conversation = await createConversation([user.id, userId]);
-      setConversations((prev) => [conversation, ...prev]);
-      handleSelectConversation(conversation);
-      setShowNewConversationDialog(false);
-      if (isMobileView) {
-        setShowConversationList(false);
-      }
-    } catch (error) {
-      console.error("Error creating conversation:", error);
-      toast({
-        title: "Error",
-        description: "Failed to create conversation",
-        variant: "destructive",
-      });
+    await createConversation(userId);
+    setShowNewConversationDialog(false);
+    if (isMobileView) {
+      setShowConversationList(false);
     }
   };
 
@@ -236,11 +107,9 @@ export default function MessagesLayout() {
           className={`${isMobileView ? "w-full" : "w-1/3 border-r border-gray-200"}`}
         >
           <ConversationList
-            conversations={conversations}
             selectedConversationId={selectedConversation?.id}
             onSelectConversation={handleSelectConversation}
             onNewConversation={() => setShowNewConversationDialog(true)}
-            isLoading={isLoadingConversations}
           />
         </div>
       )}
@@ -262,18 +131,26 @@ export default function MessagesLayout() {
                     <ArrowLeft className="h-5 w-5" />
                   </Button>
                 )}
-                <Avatar className="h-10 w-10 mr-3">
-                  <AvatarImage
-                    src={
-                      otherParticipant?.user?.avatar_url ||
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${otherParticipant?.user_id}`
-                    }
-                    alt={otherParticipant?.user?.full_name || "User"}
-                  />
-                  <AvatarFallback>
-                    {otherParticipant?.user?.full_name?.[0] || "U"}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                  <Avatar className="h-10 w-10 mr-3">
+                    <AvatarImage
+                      src={
+                        otherParticipant?.user?.avatar_url ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${otherParticipant?.user_id}`
+                      }
+                      alt={otherParticipant?.user?.full_name || "User"}
+                    />
+                    <AvatarFallback>
+                      {otherParticipant?.user?.full_name?.[0] || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  {otherParticipant && (
+                    <OnlineStatusIndicator
+                      userId={otherParticipant.user_id}
+                      className="absolute bottom-0 right-2"
+                    />
+                  )}
+                </div>
                 <div className="flex-1">
                   <h3 className="font-medium">
                     {otherParticipant?.user?.full_name ||
@@ -288,17 +165,11 @@ export default function MessagesLayout() {
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto">
-                <MessageList
-                  messages={messages}
-                  isLoading={isLoadingMessages}
-                />
+                <MessageList />
               </div>
 
               {/* Message Composer */}
-              <MessageComposer
-                onSendMessage={handleSendMessage}
-                isLoading={isSendingMessage}
-              />
+              <MessageComposer onSendMessage={handleSendMessage} />
             </>
           ) : (
             <div className="flex flex-col items-center justify-center h-full p-6 text-center">

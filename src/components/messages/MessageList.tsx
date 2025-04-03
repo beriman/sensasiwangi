@@ -1,22 +1,32 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { PrivateMessage } from "@/types/messages";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import { id } from "date-fns/locale";
 import { useAuth } from "../../../supabase/auth";
 import { cn } from "@/lib/utils";
+import { useConversation } from "@/contexts/ConversationContext";
+import { MoreHorizontal, Trash2, Edit2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { toast } from "@/components/ui/use-toast";
+import DOMPurify from "dompurify";
+import OnlineStatusIndicator from "./OnlineStatusIndicator";
 
-interface MessageListProps {
-  messages: PrivateMessage[];
-  isLoading?: boolean;
-}
-
-export default function MessageList({
-  messages,
-  isLoading = false,
-}: MessageListProps) {
+export default function MessageList() {
   const { user } = useAuth();
+  const {
+    messages,
+    isLoadingMessages: isLoading,
+    deleteMessage: deleteConversationMessage,
+    setEditingMessage,
+  } = useConversation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     scrollToBottom();
@@ -91,18 +101,24 @@ export default function MessageList({
               >
                 <div className="flex max-w-[80%]">
                   {!isCurrentUser && (
-                    <Avatar className="h-8 w-8 mr-2">
-                      <AvatarImage
-                        src={
-                          message.sender?.avatar_url ||
-                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${message.sender_id}`
-                        }
-                        alt={message.sender?.full_name || "User"}
+                    <div className="relative">
+                      <Avatar className="h-8 w-8 mr-2">
+                        <AvatarImage
+                          src={
+                            message.sender?.avatar_url ||
+                            `https://api.dicebear.com/7.x/avataaars/svg?seed=${message.sender_id}`
+                          }
+                          alt={message.sender?.full_name || "User"}
+                        />
+                        <AvatarFallback>
+                          {message.sender?.full_name?.[0] || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <OnlineStatusIndicator
+                        userId={message.sender_id}
+                        className="absolute bottom-0 right-0 h-2 w-2"
                       />
-                      <AvatarFallback>
-                        {message.sender?.full_name?.[0] || "U"}
-                      </AvatarFallback>
-                    </Avatar>
+                    </div>
                   )}
 
                   <div
@@ -119,9 +135,19 @@ export default function MessageList({
                           : "bg-gray-100 text-gray-800 rounded-bl-none",
                       )}
                     >
-                      <p className="whitespace-pre-wrap break-words">
-                        {message.content}
-                      </p>
+                      {message.content.includes("<") &&
+                      message.content.includes("</") ? (
+                        <div
+                          className="whitespace-pre-wrap break-words"
+                          dangerouslySetInnerHTML={{
+                            __html: DOMPurify.sanitize(message.content),
+                          }}
+                        />
+                      ) : (
+                        <p className="whitespace-pre-wrap break-words">
+                          {message.content}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center mt-1 space-x-2">
                       <span className="text-xs text-gray-500">
@@ -133,22 +159,107 @@ export default function MessageList({
                       {message.is_edited && (
                         <span className="text-xs text-gray-500">(edited)</span>
                       )}
+
+                      {isCurrentUser && (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5 rounded-full p-0 text-gray-400 hover:text-gray-600"
+                            >
+                              <MoreHorizontal className="h-3 w-3" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-32 p-1" align="end">
+                            <div className="flex flex-col space-y-1">
+                              {/* Check if message is within 1 hour for editing */}
+                              {new Date().getTime() -
+                                new Date(message.created_at).getTime() <
+                                60 * 60 * 1000 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="flex items-center justify-start text-xs"
+                                  onClick={() => setEditingMessage(message)}
+                                >
+                                  <Edit2 className="h-3 w-3 mr-2" />
+                                  Edit
+                                </Button>
+                              )}
+
+                              {/* Check if message is within 24 hours for deletion */}
+                              {new Date().getTime() -
+                                new Date(message.created_at).getTime() <
+                                24 * 60 * 60 * 1000 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="flex items-center justify-start text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
+                                  onClick={async () => {
+                                    try {
+                                      setIsDeleting(message.id);
+                                      await deleteConversationMessage(
+                                        message.id,
+                                      );
+                                      toast({
+                                        description:
+                                          "Message deleted successfully",
+                                      });
+                                    } catch (error) {
+                                      console.error(
+                                        "Error deleting message:",
+                                        error,
+                                      );
+                                      toast({
+                                        variant: "destructive",
+                                        description:
+                                          error instanceof Error
+                                            ? error.message
+                                            : "Failed to delete message",
+                                      });
+                                    } finally {
+                                      setIsDeleting(null);
+                                    }
+                                  }}
+                                  disabled={isDeleting === message.id}
+                                >
+                                  {isDeleting === message.id ? (
+                                    <div className="h-3 w-3 mr-2 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-3 w-3 mr-2" />
+                                  )}
+                                  Delete
+                                </Button>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      )}
                     </div>
                   </div>
 
                   {isCurrentUser && (
-                    <Avatar className="h-8 w-8 ml-2">
-                      <AvatarImage
-                        src={
-                          user?.user_metadata?.avatar_url ||
-                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`
-                        }
-                        alt={user?.user_metadata?.full_name || "User"}
-                      />
-                      <AvatarFallback>
-                        {user?.user_metadata?.full_name?.[0] || "U"}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className="relative">
+                      <Avatar className="h-8 w-8 ml-2">
+                        <AvatarImage
+                          src={
+                            user?.user_metadata?.avatar_url ||
+                            `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`
+                          }
+                          alt={user?.user_metadata?.full_name || "User"}
+                        />
+                        <AvatarFallback>
+                          {user?.user_metadata?.full_name?.[0] || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      {user?.id && (
+                        <OnlineStatusIndicator
+                          userId={user.id}
+                          className="absolute bottom-0 right-0 h-2 w-2"
+                        />
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
