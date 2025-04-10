@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, PlusCircle } from "lucide-react";
 import { useParams } from "react-router-dom";
-import MainLayout from "../layout/MainLayout";
 import { useAuth } from "@/lib/auth-provider";
 
 interface ForumLayoutProps {
@@ -22,39 +21,37 @@ export default function ForumLayout({
   const { categoryId } = useParams();
 
   return (
-    <MainLayout>
-      <div className="space-y-6">
-        {/* Forum Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              {title || "Forum Komunitas"}
-            </h1>
-            {subtitle && <p className="text-gray-500 mt-1">{subtitle}</p>}
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="relative w-full md:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-              <Input
-                type="search"
-                placeholder="Cari di forum..."
-                className="pl-8 bg-white"
-              />
-            </div>
-            {categoryId && user && (
-              <Link to={`/forum/new-thread/${categoryId}`}>
-                <Button>
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Buat Thread
-                </Button>
-              </Link>
-            )}
-          </div>
+    <div className="space-y-6">
+      {/* Forum Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {title || "Forum Komunitas"}
+          </h1>
+          {subtitle && <p className="text-gray-500 mt-1">{subtitle}</p>}
         </div>
-
-        {/* Forum Content */}
-        <div>{children}</div>
+        <div className="flex items-center gap-3">
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Input
+              type="search"
+              placeholder="Cari di forum..."
+              className="pl-8 bg-white"
+            />
+          </div>
+          {categoryId && user && (
+            <Link to={`/forum/new-thread/${categoryId}`}>
+              <Button>
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Buat Thread
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
-    </MainLayout>
+
+      {/* Forum Content */}
+      <div>{children}</div>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 import React, { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Droplet, ShoppingBag, ShoppingCart } from "lucide-react";
-import { useAuth } from "../../../supabase/auth";
+import { useAuth } from "@/lib/auth-provider";
 
 interface MarketplaceLayoutProps {
   children: ReactNode;
