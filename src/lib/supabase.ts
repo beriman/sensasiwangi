@@ -1,5 +1,7 @@
 import { supabase } from "../../supabase/supabase";
 
+export { supabase };
+
 // Helper functions for common Supabase operations
 
 // Generic fetch function with error handling
