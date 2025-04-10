@@ -1,1 +1,0 @@
-Fix double navbar issue: Remove nested MainLayout from ForumLayout and update auth imports
