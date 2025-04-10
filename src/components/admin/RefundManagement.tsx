@@ -326,3 +326,13 @@ const RefundManagement = () => {
                     </Button>
                   </div>
                 )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default RefundManagement;
