@@ -4,12 +4,23 @@ import { PrivateConversation, PrivateMessage } from "@/types/messages";
 // Get all conversations for a user
 export async function getUserConversations(
   userId: string,
+  includeArchived: boolean = false,
 ): Promise<PrivateConversation[]> {
   // Get all conversations the user is part of
-  const { data: participations, error: participationsError } = await supabase
+  let query = supabase
     .from("private_conversation_participants")
-    .select("conversation_id")
+    .select("conversation_id, is_archived, is_deleted")
     .eq("user_id", userId);
+
+  // Don't include deleted conversations
+  query = query.eq("is_deleted", false);
+
+  // Only include non-archived conversations unless specifically requested
+  if (!includeArchived) {
+    query = query.eq("is_archived", false);
+  }
+
+  const { data: participations, error: participationsError } = await query;
 
   if (participationsError) throw participationsError;
   if (!participations || participations.length === 0) return [];
@@ -127,14 +138,21 @@ export async function sendMessage(
   conversationId: string,
   senderId: string,
   content: string,
+  imageUrl?: string,
 ): Promise<PrivateMessage> {
+  const messageData: any = {
+    conversation_id: conversationId,
+    sender_id: senderId,
+    content,
+  };
+
+  if (imageUrl) {
+    messageData.image_url = imageUrl;
+  }
+
   const { data, error } = await supabase
     .from("private_messages")
-    .insert({
-      conversation_id: conversationId,
-      sender_id: senderId,
-      content,
-    })
+    .insert(messageData)
     .select("*")
     .single();
 
@@ -233,13 +251,73 @@ export async function markConversationAsRead(
   conversationId: string,
   userId: string,
 ): Promise<void> {
+  // Update the last_read_at timestamp to the current time
+  const currentTime = new Date().toISOString();
+
   const { error } = await supabase
     .from("private_conversation_participants")
-    .update({ last_read_at: new Date().toISOString() })
+    .update({ last_read_at: currentTime })
     .eq("conversation_id", conversationId)
     .eq("user_id", userId);
 
-  if (error) throw error;
+  if (error) {
+    console.error("Error marking conversation as read:", error);
+    throw error;
+  }
+
+  // Return silently on success
+}
+
+// Archive a conversation for a user
+export async function archiveConversation(
+  conversationId: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("private_conversation_participants")
+    .update({ is_archived: true })
+    .eq("conversation_id", conversationId)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("Error archiving conversation:", error);
+    throw error;
+  }
+}
+
+// Unarchive a conversation for a user
+export async function unarchiveConversation(
+  conversationId: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("private_conversation_participants")
+    .update({ is_archived: false })
+    .eq("conversation_id", conversationId)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("Error unarchiving conversation:", error);
+    throw error;
+  }
+}
+
+// Delete a conversation for a user
+export async function deleteConversation(
+  conversationId: string,
+  userId: string,
+): Promise<void> {
+  // We don't actually delete the conversation, just mark it as deleted for this user
+  const { error } = await supabase
+    .from("private_conversation_participants")
+    .update({ is_deleted: true })
+    .eq("conversation_id", conversationId)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("Error deleting conversation:", error);
+    throw error;
+  }
 }
 
 // Get total unread message count for a user
@@ -282,13 +360,23 @@ export async function deleteMessage(
   // Check if user is the sender
   const { data: message, error: messageError } = await supabase
     .from("private_messages")
-    .select("sender_id")
+    .select("sender_id, created_at")
     .eq("id", messageId)
     .single();
 
   if (messageError) throw messageError;
   if (message.sender_id !== userId) {
     throw new Error("You can only delete your own messages");
+  }
+
+  // Check if message is within the time limit for deletion (24 hours)
+  const messageDate = new Date(message.created_at);
+  const currentDate = new Date();
+  const hoursDifference =
+    (currentDate.getTime() - messageDate.getTime()) / (1000 * 60 * 60);
+
+  if (hoursDifference > 24) {
+    throw new Error("Messages can only be deleted within 24 hours of sending");
   }
 
   // Delete the message
@@ -309,13 +397,23 @@ export async function editMessage(
   // Check if user is the sender
   const { data: message, error: messageError } = await supabase
     .from("private_messages")
-    .select("sender_id")
+    .select("sender_id, created_at")
     .eq("id", messageId)
     .single();
 
   if (messageError) throw messageError;
   if (message.sender_id !== userId) {
     throw new Error("You can only edit your own messages");
+  }
+
+  // Check if message is within the time limit for editing (1 hour)
+  const messageDate = new Date(message.created_at);
+  const currentDate = new Date();
+  const hoursDifference =
+    (currentDate.getTime() - messageDate.getTime()) / (1000 * 60 * 60);
+
+  if (hoursDifference > 1) {
+    throw new Error("Messages can only be edited within 1 hour of sending");
   }
 
   // Update the message

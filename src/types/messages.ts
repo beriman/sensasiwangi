@@ -26,6 +26,7 @@ export interface PrivateMessage {
   conversation_id: string;
   sender_id: string;
   content: string;
+  image_url?: string;
   created_at: string;
   updated_at: string;
   is_edited: boolean;
