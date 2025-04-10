@@ -1,8 +1,11 @@
 import React, { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Droplet } from "lucide-react";
-import { useAuth } from "../../../supabase/auth";
-import NotificationCenter from "./NotificationCenter";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Search, PlusCircle } from "lucide-react";
+import { useParams } from "react-router-dom";
+import MainLayout from "../layout/MainLayout";
+import { useAuth } from "@/lib/auth-provider";
 
 interface ForumLayoutProps {
   children: ReactNode;
@@ -16,66 +19,42 @@ export default function ForumLayout({
   subtitle,
 }: ForumLayoutProps) {
   const { user } = useAuth();
+  const { categoryId } = useParams();
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
-      {/* Header */}
-      <header className="fixed top-0 z-50 w-full bg-[rgba(255,255,255,0.8)] backdrop-blur-md border-b border-[#f5f5f7]/30">
-        <div className="max-w-[1200px] mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center">
-            <Link to="/" className="font-medium text-xl flex items-center">
-              <Droplet className="h-6 w-6 mr-2 text-purple-600" />
-              <span className="bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent font-bold">
-                Sensasiwangi
-              </span>
-            </Link>
+    <MainLayout>
+      <div className="space-y-6">
+        {/* Forum Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {title || "Forum Komunitas"}
+            </h1>
+            {subtitle && <p className="text-gray-500 mt-1">{subtitle}</p>}
           </div>
-          <div className="flex items-center space-x-4">
-            <Link
-              to="/forum"
-              className="text-sm font-medium hover:text-purple-600"
-            >
-              Forum
-            </Link>
-            <Link
-              to="/dashboard"
-              className="text-sm font-medium hover:text-purple-600"
-            >
-              Dashboard
-            </Link>
-            {user && <NotificationCenter />}
-            {!user && (
-              <Link to="/login">
-                <button className="rounded-full bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:opacity-90 text-sm px-4 py-2">
-                  Sign In
-                </button>
+          <div className="flex items-center gap-3">
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+              <Input
+                type="search"
+                placeholder="Cari di forum..."
+                className="pl-8 bg-white"
+              />
+            </div>
+            {categoryId && user && (
+              <Link to={`/forum/new-thread/${categoryId}`}>
+                <Button>
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  Buat Thread
+                </Button>
               </Link>
             )}
           </div>
         </div>
-      </header>
 
-      {/* Main content */}
-      <main className="pt-24 pb-12 px-4">
-        <div className="max-w-[1200px] mx-auto">
-          {(title || subtitle) && (
-            <div className="mb-8 text-center">
-              {title && (
-                <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
-              )}
-              {subtitle && <p className="mt-2 text-gray-600">{subtitle}</p>}
-            </div>
-          )}
-          {children}
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-white py-6 border-t border-gray-200">
-        <div className="max-w-[1200px] mx-auto px-4 text-center text-sm text-gray-500">
-          <p>© 2024 Sensasiwangi. Forum Komunitas Perfumer Indonesia.</p>
-        </div>
-      </footer>
-    </div>
+        {/* Forum Content */}
+        <div>{children}</div>
+      </div>
+    </MainLayout>
   );
 }

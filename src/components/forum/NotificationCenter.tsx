@@ -1,359 +1,290 @@
 import React, { useState, useEffect } from "react";
-import { Bell, Check, Filter } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/components/ui/use-toast";
-import { useAuth } from "../../../supabase/auth";
-import {
-  getNotifications,
-  markAllNotificationsAsRead,
-  markNotificationAsRead,
-} from "@/lib/forum";
-import { ForumNotification } from "@/types/forum";
-import { formatDistanceToNow } from "date-fns";
-import { Link } from "react-router-dom";
-import { supabase } from "../../../supabase/supabase";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Bell, MessageSquare, ThumbsUp, Award, User, ShoppingBag } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth-provider";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+
+interface Notification {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  message: string;
+  link: string;
+  is_read: boolean;
+  created_at: string;
+  related_id: string | null;
+  sender_id: string | null;
+  sender?: {
+    username: string;
+    avatar_url: string | null;
+  };
+}
 
 export default function NotificationCenter() {
-  const [notifications, setNotifications] = useState<ForumNotification[]>([]);
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState<string | null>(null);
-
-  const { user } = useAuth();
-  const { toast } = useToast();
-
-  // Fetch notifications
-  const fetchNotifications = async () => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-      const notificationsData = await getNotifications(user.id);
-      setNotifications(notificationsData);
-      setUnreadCount(notificationsData.filter((n) => !n.read).length);
-    } catch (error) {
-      console.error("Error fetching notifications:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [activeTab, setActiveTab] = useState("all");
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
 
+    const fetchNotifications = async () => {
+      try {
+        setLoading(true);
+        
+        const { data, error } = await supabase
+          .from("notifications")
+          .select(`
+            id,
+            user_id,
+            type,
+            title,
+            message,
+            link,
+            is_read,
+            created_at,
+            related_id,
+            sender_id,
+            sender:sender_id (username, avatar_url)
+          `)
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(20);
+        
+        if (error) throw error;
+        
+        setNotifications(data || []);
+        setUnreadCount(data?.filter(n => !n.is_read).length || 0);
+      } catch (error) {
+        console.error("Error fetching notifications:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
     fetchNotifications();
-
-    // Set up real-time subscription for new notifications
+    
+    // Set up realtime subscription for new notifications
     const subscription = supabase
-      .channel(`forum_notifications_${user.id}`)
+      .channel("notifications")
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
-          table: "forum_notifications",
+          table: "notifications",
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          // Add the new notification to the list
-          const newNotification = payload.new as ForumNotification;
+          const newNotification = payload.new as Notification;
           setNotifications((prev) => [newNotification, ...prev]);
           setUnreadCount((prev) => prev + 1);
-        },
+        }
       )
       .subscribe();
-
+    
     return () => {
       subscription.unsubscribe();
     };
   }, [user]);
 
-  // Mark a notification as read
-  const handleMarkAsRead = async (notificationId: string) => {
+  const markAsRead = async (notificationId: string) => {
+    if (!user) return;
+    
     try {
-      await markNotificationAsRead(notificationId);
-
-      // Update local state
+      await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("id", notificationId);
+      
       setNotifications((prev) =>
-        prev.map((notification) =>
-          notification.id === notificationId
-            ? { ...notification, read: true }
-            : notification,
-        ),
+        prev.map((n) =>
+          n.id === notificationId ? { ...n, is_read: true } : n
+        )
       );
-
+      
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
       console.error("Error marking notification as read:", error);
-      toast({
-        title: "Error",
-        description: "Gagal menandai notifikasi sebagai telah dibaca.",
-        variant: "destructive",
-      });
     }
   };
 
-  // Mark all notifications as read
-  const handleMarkAllAsRead = async () => {
+  const markAllAsRead = async () => {
     if (!user) return;
-
+    
     try {
-      await markAllNotificationsAsRead(user.id);
-
-      // Update local state
+      await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("user_id", user.id)
+        .eq("is_read", false);
+      
       setNotifications((prev) =>
-        prev.map((notification) => ({ ...notification, read: true })),
+        prev.map((n) => ({ ...n, is_read: true }))
       );
-
+      
       setUnreadCount(0);
-
-      toast({
-        title: "Berhasil",
-        description: "Semua notifikasi telah ditandai sebagai dibaca.",
-      });
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
-      toast({
-        title: "Error",
-        description: "Gagal menandai semua notifikasi sebagai telah dibaca.",
-        variant: "destructive",
-      });
     }
   };
 
-  // Get notification link based on type
-  const getNotificationLink = (notification: ForumNotification) => {
-    switch (notification.type) {
-      case "reply":
-        return `/forum/thread/${notification.thread_id}#reply-${notification.reply_id}`;
-      case "mention":
-        return notification.reply_id
-          ? `/forum/thread/${notification.thread_id}#reply-${notification.reply_id}`
-          : `/forum/thread/${notification.thread_id}`;
-      case "vote":
-        return notification.reply_id
-          ? `/forum/thread/${notification.thread_id}#reply-${notification.reply_id}`
-          : `/forum/thread/${notification.thread_id}`;
-      case "level_up":
-        return `/profile`;
-      case "sambatan_joined":
-      case "sambatan_status":
-      case "sambatan_payment":
-      case "sambatan_created":
-        return notification.sambatan_id
-          ? `/marketplace/sambatan/${notification.sambatan_id}`
-          : `/marketplace`;
-      default:
-        return `/forum`;
-    }
-  };
-
-  // Get notification icon based on type
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "reply":
-        return (
-          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-            <span className="text-blue-600 text-sm">💬</span>
-          </div>
-        );
-      case "mention":
-        return (
-          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-            <span className="text-green-600 text-sm">@</span>
-          </div>
-        );
+        return <MessageSquare className="h-4 w-4 text-blue-500" />;
       case "vote":
-        return (
-          <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center">
-            <span className="text-purple-600 text-sm">👍</span>
-          </div>
-        );
-      case "level_up":
-        return (
-          <div className="h-8 w-8 rounded-full bg-yellow-100 flex items-center justify-center">
-            <span className="text-yellow-600 text-sm">⭐</span>
-          </div>
-        );
-      case "sambatan_joined":
-        return (
-          <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-            <span className="text-indigo-600 text-sm">👥</span>
-          </div>
-        );
-      case "sambatan_status":
-        return (
-          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-            <span className="text-blue-600 text-sm">🔔</span>
-          </div>
-        );
-      case "sambatan_payment":
-        return (
-          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-            <span className="text-green-600 text-sm">💰</span>
-          </div>
-        );
-      case "sambatan_created":
-        return (
-          <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center">
-            <span className="text-orange-600 text-sm">🛒</span>
-          </div>
-        );
+        return <ThumbsUp className="h-4 w-4 text-green-500" />;
+      case "solution":
+        return <Award className="h-4 w-4 text-amber-500" />;
+      case "follow":
+        return <User className="h-4 w-4 text-purple-500" />;
+      case "order":
+        return <ShoppingBag className="h-4 w-4 text-orange-500" />;
       default:
-        return (
-          <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center">
-            <span className="text-gray-600 text-sm">📢</span>
-          </div>
-        );
+        return <Bell className="h-4 w-4 text-gray-500" />;
     }
   };
 
-  if (!user) {
-    return null;
-  }
+  const filteredNotifications = notifications.filter((notification) => {
+    if (activeTab === "all") return true;
+    return notification.type === activeTab;
+  });
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative h-9 w-9 rounded-full"
+        >
+          <Bell className="h-5 w-5 text-gray-600" />
           {unreadCount > 0 && (
-            <Badge
-              className="absolute -top-1 -right-1 px-1.5 py-0.5 min-w-[1.25rem] h-5 flex items-center justify-center bg-red-500 text-white"
-              variant="destructive"
-            >
-              {unreadCount > 99 ? "99+" : unreadCount}
+            <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-500">
+              {unreadCount > 9 ? "9+" : unreadCount}
             </Badge>
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end">
-        <div className="flex items-center justify-between p-4 border-b">
-          <div className="flex items-center gap-2">
-            <h3 className="font-medium">Notifikasi</h3>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7">
-                  <Filter className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => setFilter(null)}>
-                  All
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilter("reply")}>
-                  Replies
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilter("mention")}>
-                  Mentions
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilter("vote")}>
-                  Votes
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilter("level_up")}>
-                  Level Up
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilter("sambatan_joined")}>
-                  Sambatan Joined
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilter("sambatan_status")}>
-                  Sambatan Status
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilter("sambatan_payment")}>
-                  Sambatan Payment
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+      <PopoverContent className="w-[380px] p-0" align="end">
+        <div className="p-4 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">Notifications</h3>
+            {unreadCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7"
+                onClick={markAllAsRead}
+              >
+                Mark all as read
+              </Button>
+            )}
           </div>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleMarkAllAsRead}
-              className="text-xs h-8"
-            >
-              <Check className="h-3.5 w-3.5 mr-1" />
-              Tandai semua dibaca
-            </Button>
-          )}
         </div>
-
-        <ScrollArea className="h-[300px]">
-          {loading ? (
-            <div className="flex justify-center items-center h-[300px]">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-700" />
-            </div>
-          ) : notifications.length > 0 ? (
-            <div className="py-2">
-              {notifications
-                .filter((notification) =>
-                  filter ? notification.type === filter : true,
-                )
-                .map((notification) => (
-                  <div key={notification.id} className="px-4 py-2">
-                    <div
-                      className={`flex gap-3 ${!notification.read ? "bg-purple-50 -mx-4 px-4 py-2 rounded" : ""}`}
-                    >
-                      {getNotificationIcon(notification.type)}
-                      <div className="flex-1">
-                        <Link
-                          to={getNotificationLink(notification)}
-                          className="text-sm font-medium hover:text-purple-700"
-                          onClick={() => {
-                            if (!notification.read) {
-                              handleMarkAsRead(notification.id);
-                            }
-                            setOpen(false);
-                          }}
-                        >
-                          {notification.message}
-                        </Link>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {formatDistanceToNow(
-                            new Date(notification.created_at),
-                            { addSuffix: true },
-                          )}
-                        </p>
-                      </div>
-                      {!notification.read && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => handleMarkAsRead(notification.id)}
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </div>
-                    <Separator className="mt-2" />
-                  </div>
-                ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-[300px] text-center p-4">
-              <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                <Bell className="h-6 w-6 text-gray-400" />
+        
+        <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="w-full grid grid-cols-4 h-10 rounded-none border-b">
+            <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
+            <TabsTrigger value="reply" className="text-xs">Replies</TabsTrigger>
+            <TabsTrigger value="vote" className="text-xs">Votes</TabsTrigger>
+            <TabsTrigger value="follow" className="text-xs">Follows</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value={activeTab} className="p-0">
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <LoadingSpinner size="md" />
               </div>
-              <p className="text-sm text-gray-500">Tidak ada notifikasi</p>
-            </div>
-          )}
-        </ScrollArea>
+            ) : filteredNotifications.length === 0 ? (
+              <div className="text-center py-8">
+                <Bell className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-gray-500">No notifications yet</p>
+              </div>
+            ) : (
+              <ScrollArea className="h-[300px]">
+                <div className="divide-y divide-gray-100">
+                  {filteredNotifications.map((notification) => (
+                    <Link
+                      key={notification.id}
+                      to={notification.link}
+                      className={`block p-4 hover:bg-gray-50 transition-colors ${
+                        !notification.is_read ? "bg-blue-50" : ""
+                      }`}
+                      onClick={() => {
+                        if (!notification.is_read) {
+                          markAsRead(notification.id);
+                        }
+                        setIsOpen(false);
+                      }}
+                    >
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0 mr-3">
+                          {notification.sender ? (
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage
+                                src={
+                                  notification.sender.avatar_url ||
+                                  `https://api.dicebear.com/7.x/avataaars/svg?seed=${notification.sender_id}`
+                                }
+                                alt={notification.sender.username}
+                              />
+                              <AvatarFallback>
+                                {notification.sender.username[0]}
+                              </AvatarFallback>
+                            </Avatar>
+                          ) : (
+                            <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center">
+                              {getNotificationIcon(notification.type)}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900">
+                            {notification.title}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                            {notification.message}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(notification.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                        {!notification.is_read && (
+                          <div className="flex-shrink-0 ml-2">
+                            <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </TabsContent>
+        </Tabs>
+        
+        <div className="p-2 border-t border-gray-100 text-center">
+          <Button variant="ghost" size="sm" className="text-xs w-full" asChild>
+            <Link to="/notifications">View All Notifications</Link>
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   );

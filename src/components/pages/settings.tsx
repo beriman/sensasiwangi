@@ -9,15 +9,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/use-toast";
 import { LoadingScreen } from "@/components/ui/loading-spinner";
-import { useAuth } from "../../../supabase/auth";
-import { supabase } from "../../../supabase/supabase";
+import { useAuth } from "@/lib/auth-provider";
+import { supabase } from "@/lib/supabase";
 import { Upload, Loader2, ArrowLeft } from "lucide-react";
+import MainLayout from "../layout/MainLayout";
 
 interface UserProfile {
   username: string;
   full_name: string;
   bio: string;
   avatar_url: string;
+  membership: "free" | "business";
 }
 
 export default function Settings() {
@@ -34,6 +36,7 @@ export default function Settings() {
     full_name: "",
     bio: "",
     avatar_url: "",
+    membership: "free",
   });
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -48,25 +51,28 @@ export default function Settings() {
     const fetchUserProfile = async () => {
       try {
         setLoading(true);
+
+        // Get user profile data
         const { data, error } = await supabase
           .from("users")
-          .select("username, full_name, bio, avatar_url")
+          .select("*")
           .eq("id", user.id)
           .single();
 
         if (error) throw error;
 
         setProfile({
-          username: data?.username || user.email?.split("@")[0] || "",
-          full_name: data?.full_name || "",
-          bio: data?.bio || "",
-          avatar_url: data?.avatar_url || "",
+          username: data.username || "",
+          full_name: data.full_name || "",
+          bio: data.bio || "",
+          avatar_url: data.avatar_url || "",
+          membership: data.membership || "free",
         });
       } catch (error) {
         console.error("Error fetching user profile:", error);
         toast({
           title: "Error",
-          description: "Failed to load profile data. Please try again.",
+          description: "Failed to load user profile. Please try again.",
           variant: "destructive",
         });
       } finally {
@@ -193,88 +199,73 @@ export default function Settings() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
-      <Button
-        variant="ghost"
-        className="mb-6 flex items-center text-gray-600 hover:text-gray-900"
-        onClick={() => navigate(-1)}
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back
-      </Button>
+    <MainLayout>
+      <div className="space-y-6">
+        <Button
+          variant="ghost"
+          className="mb-6 flex items-center text-gray-600 hover:text-gray-900"
+          onClick={() => navigate(-1)}
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
 
-      <h1 className="text-2xl font-bold mb-6">Account Settings</h1>
+        <h1 className="text-2xl font-bold mb-6">Account Settings</h1>
 
-      <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-        <CardHeader>
-          <Tabs
-            defaultValue="profile"
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="w-full"
-          >
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="account">Account</TabsTrigger>
-              <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardHeader>
+        <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <CardHeader>
+            <Tabs
+              defaultValue="profile"
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="profile">Profile</TabsTrigger>
+                <TabsTrigger value="account">Account</TabsTrigger>
+                <TabsTrigger value="notifications">Notifications</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </CardHeader>
 
-        <CardContent className="pb-6">
-          <TabsContent value="profile" className="mt-4">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="flex flex-col md:flex-row gap-6">
-                <div className="md:w-1/3">
-                  <div className="flex flex-col items-center">
-                    <Avatar className="h-24 w-24 mb-4">
-                      <AvatarImage
-                        src={
-                          avatarPreview ||
-                          profile.avatar_url ||
-                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`
-                        }
-                        alt="Profile"
-                      />
-                      <AvatarFallback>
-                        {profile.full_name?.[0] || user?.email?.[0] || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-
-                    <Label
-                      htmlFor="avatar-upload"
-                      className="cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-3 rounded-md text-sm flex items-center justify-center transition-colors"
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Change Avatar
-                    </Label>
-                    <Input
-                      id="avatar-upload"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="hidden"
-                    />
-                    <p className="text-xs text-gray-500 mt-2 text-center">
-                      JPG, PNG or GIF. Max 2MB.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="md:w-2/3 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="username">Username</Label>
-                      <Input
-                        id="username"
-                        value={profile.username}
-                        onChange={(e) =>
-                          setProfile({ ...profile, username: e.target.value })
-                        }
-                        placeholder="Username"
-                      />
+          <CardContent className="pb-6">
+            <TabsContent value="profile" className="mt-4">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="flex flex-col md:flex-row gap-6">
+                  <div className="md:w-1/3">
+                    <div className="flex flex-col items-center">
+                      <Avatar className="h-24 w-24 mb-4">
+                        <AvatarImage
+                          src={
+                            avatarPreview ||
+                            profile.avatar_url ||
+                            `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`
+                          }
+                          alt="Profile"
+                        />
+                        <AvatarFallback>
+                          {profile.full_name?.[0] || user?.email?.[0] || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex items-center">
+                        <Label
+                          htmlFor="avatar"
+                          className="cursor-pointer text-sm text-purple-600 hover:text-purple-700 flex items-center"
+                        >
+                          <Upload className="h-4 w-4 mr-1" />
+                          Change Avatar
+                        </Label>
+                        <Input
+                          id="avatar"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleAvatarChange}
+                        />
+                      </div>
                     </div>
-
+                  </div>
+                  <div className="md:w-2/3 space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="full_name">Full Name</Label>
                       <Input
@@ -283,163 +274,185 @@ export default function Settings() {
                         onChange={(e) =>
                           setProfile({ ...profile, full_name: e.target.value })
                         }
-                        placeholder="Full Name"
+                        placeholder="Your full name"
                       />
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="bio">Bio</Label>
-                    <Textarea
-                      id="bio"
-                      value={profile.bio}
-                      onChange={(e) =>
-                        setProfile({ ...profile, bio: e.target.value })
-                      }
-                      placeholder="Tell us about yourself"
-                      className="min-h-[120px]"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button type="submit" disabled={saving}>
-                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {saving ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
-            </form>
-          </TabsContent>
-
-          <TabsContent value="account" className="mt-4">
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium mb-4">
-                  Account Information
-                </h3>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Email Address</Label>
-                    <div className="flex">
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Username</Label>
                       <Input
-                        value={user?.email || ""}
-                        disabled
-                        className="bg-gray-50"
-                      />
-                      <Button
-                        variant="outline"
-                        className="ml-2"
-                        onClick={() =>
-                          toast({
-                            title: "Coming Soon",
-                            description:
-                              "Email change functionality will be available soon.",
-                          })
+                        id="username"
+                        value={profile.username}
+                        onChange={(e) =>
+                          setProfile({ ...profile, username: e.target.value })
                         }
-                      >
-                        Change
-                      </Button>
+                        placeholder="Your username"
+                      />
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Password</Label>
-                    <div className="flex">
-                      <Input
-                        type="password"
-                        value="********"
-                        disabled
-                        className="bg-gray-50"
-                      />
-                      <Button
-                        variant="outline"
-                        className="ml-2"
-                        onClick={() =>
-                          toast({
-                            title: "Coming Soon",
-                            description:
-                              "Password change functionality will be available soon.",
-                          })
+                    <div className="space-y-2">
+                      <Label htmlFor="bio">Bio</Label>
+                      <Textarea
+                        id="bio"
+                        value={profile.bio}
+                        onChange={(e) =>
+                          setProfile({ ...profile, bio: e.target.value })
                         }
-                      >
-                        Change
-                      </Button>
+                        placeholder="Tell us about yourself"
+                        rows={4}
+                      />
                     </div>
                   </div>
                 </div>
-              </div>
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Changes"
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </TabsContent>
 
-              <div>
-                <h3 className="text-lg font-medium mb-4">Membership</h3>
-                <Card className="bg-gray-50 border border-gray-200">
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="font-medium">Free Plan</p>
-                        <p className="text-sm text-gray-500">
-                          Basic access to community features
-                        </p>
+            <TabsContent value="account" className="mt-4">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium mb-4">
+                    Account Information
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Email Address</Label>
+                      <div className="flex">
+                        <Input
+                          value={user?.email || ""}
+                          disabled
+                          className="bg-gray-50"
+                        />
+                        <Button
+                          variant="outline"
+                          className="ml-2"
+                          onClick={() =>
+                            toast({
+                              title: "Coming Soon",
+                              description:
+                                "Email change functionality will be available soon.",
+                            })
+                          }
+                        >
+                          Change
+                        </Button>
                       </div>
-                      <Button
-                        onClick={() =>
-                          toast({
-                            title: "Coming Soon",
-                            description:
-                              "Membership upgrade options will be available soon.",
-                          })
-                        }
-                      >
-                        Upgrade
-                      </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-medium mb-4 text-red-600">
-                  Danger Zone
-                </h3>
-                <Card className="border border-red-200 bg-red-50">
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="font-medium">Delete Account</p>
-                        <p className="text-sm text-gray-500">
-                          Permanently delete your account and all data
-                        </p>
+                    <div className="space-y-2">
+                      <Label>Password</Label>
+                      <div className="flex">
+                        <Input
+                          type="password"
+                          value="********"
+                          disabled
+                          className="bg-gray-50"
+                        />
+                        <Button
+                          variant="outline"
+                          className="ml-2"
+                          onClick={() =>
+                            toast({
+                              title: "Coming Soon",
+                              description:
+                                "Password change functionality will be available soon.",
+                            })
+                          }
+                        >
+                          Change
+                        </Button>
                       </div>
-                      <Button
-                        variant="destructive"
-                        onClick={() =>
-                          toast({
-                            title: "Coming Soon",
-                            description:
-                              "Account deletion functionality will be available soon.",
-                          })
-                        }
-                      >
-                        Delete Account
-                      </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
+                  </div>
+                </div>
 
-          <TabsContent value="notifications" className="mt-4">
-            <div className="space-y-6">
-              <div className="text-center py-8">
-                <p className="text-gray-500">
-                  Notification settings coming soon!
-                </p>
+                <div>
+                  <h3 className="text-lg font-medium mb-4">Membership</h3>
+                  <Card className="bg-gray-50 border border-gray-200">
+                    <CardContent className="pt-6">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-medium">
+                            {profile.membership === "business" 
+                              ? "Business Plan" 
+                              : "Free Plan"}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {profile.membership === "business"
+                              ? "Full access to all features including dashboard"
+                              : "Basic access to community features"}
+                          </p>
+                        </div>
+                        {profile.membership === "free" && (
+                          <Button
+                            onClick={() =>
+                              toast({
+                                title: "Coming Soon",
+                                description:
+                                  "Membership upgrade options will be available soon.",
+                              })
+                            }
+                          >
+                            Upgrade
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-medium mb-4 text-red-600">
+                    Danger Zone
+                  </h3>
+                  <Card className="border border-red-200 bg-red-50">
+                    <CardContent className="pt-6">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-medium">Delete Account</p>
+                          <p className="text-sm text-gray-500">
+                            Permanently delete your account and all data
+                          </p>
+                        </div>
+                        <Button
+                          variant="destructive"
+                          onClick={() =>
+                            toast({
+                              title: "Coming Soon",
+                              description:
+                                "Account deletion functionality will be available soon.",
+                            })
+                          }
+                        >
+                          Delete Account
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-            </div>
-          </TabsContent>
-        </CardContent>
-      </Card>
-    </div>
+            </TabsContent>
+
+            <TabsContent value="notifications" className="mt-4">
+              <div className="space-y-6">
+                <div className="text-center py-8">
+                  <p className="text-gray-500">
+                    Notification settings coming soon!
+                  </p>
+                </div>
+              </div>
+            </TabsContent>
+          </CardContent>
+        </Card>
+      </div>
+    </MainLayout>
   );
 }

@@ -5,8 +5,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "../../../supabase/auth";
-import { supabase } from "../../../supabase/supabase";
+import { useAuth } from "../../lib/auth-provider";
+import { supabase } from "../../lib/supabase";
 import { LoadingScreen } from "@/components/ui/loading-spinner";
 import {
   Crown,
@@ -14,11 +14,15 @@ import {
   MessageSquare,
   ShoppingBag,
   Mail,
+  User,
 } from "lucide-react";
+import MainLayout from "../layout/MainLayout";
 import UserProfileCard from "../dashboard/UserProfileCard";
 import BookmarkedThreads from "../profile/BookmarkedThreads";
-import { getUserBadges, getAllBadges } from "@/lib/forum";
-import { ForumBadge } from "@/types/forum";
+import BadgeCollection from "../profile/BadgeCollection";
+import ExpCard from "../profile/ExpCard";
+import FollowSection from "../profile/FollowSection";
+import SocialStats from "../profile/SocialStats";
 import MessageButton from "../messages/MessageButton";
 
 interface UserProfile {
@@ -32,16 +36,9 @@ interface UserProfile {
   created_at: string;
 }
 
-interface ProfileState extends UserProfile {
-  badges: ForumBadge[];
-  allBadges: ForumBadge[];
-}
-
-// Removed defaultBadges as we'll fetch them from the database
-
 export default function Profile() {
   const { user } = useAuth();
-  const [profile, setProfile] = useState<ProfileState | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -61,17 +58,7 @@ export default function Profile() {
 
         if (error) throw error;
 
-        // Get user badges
-        const userBadges = await getUserBadges(user.id);
-
-        // Get all available badges
-        const allAvailableBadges = await getAllBadges();
-
-        setProfile({
-          ...(data as UserProfile),
-          badges: userBadges,
-          allBadges: allAvailableBadges,
-        });
+        setProfile(data as UserProfile);
       } catch (error) {
         console.error("Error fetching user profile:", error);
       } finally {
@@ -88,24 +75,26 @@ export default function Profile() {
 
   if (!user) {
     return (
-      <div className="container mx-auto py-8 px-4 text-center">
-        <h1 className="text-2xl font-bold mb-4">Profile Not Available</h1>
-        <p className="mb-4">Please log in to view your profile.</p>
-        <Link to="/login">
-          <Button>Log In</Button>
-        </Link>
-      </div>
+      <MainLayout>
+        <div className="container mx-auto py-8 px-4 text-center">
+          <h1 className="text-2xl font-bold mb-4">Profile Not Available</h1>
+          <p className="mb-4">Please log in to view your profile.</p>
+          <Link to="/login">
+            <Button>Log In</Button>
+          </Link>
+        </div>
+      </MainLayout>
     );
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-6xl">
+    <MainLayout>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Profile Overview */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 space-y-6">
           <UserProfileCard />
 
-          <Card className="mt-6 bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-medium text-gray-900">
                 Account Details
@@ -147,15 +136,6 @@ export default function Profile() {
                     </Badge>
                   </div>
                 </div>
-                {user && profile && user.id !== profile.id && (
-                  <MessageButton
-                    userId={profile.id}
-                    variant="outline"
-                    size="sm"
-                    className="w-full mt-2"
-                    showIcon={true}
-                  />
-                )}
                 <Link to="/settings">
                   <Button variant="outline" size="sm" className="w-full mt-2">
                     <Settings className="h-4 w-4 mr-2" />
@@ -165,10 +145,13 @@ export default function Profile() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Social Stats Card */}
+          <SocialStats userId={user.id} />
         </div>
 
         {/* Right Column - Tabs Content */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           <Card className="bg-white/90 backdrop-blur-sm border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <CardHeader>
               <Tabs
@@ -177,9 +160,10 @@ export default function Profile() {
                 onValueChange={setActiveTab}
                 className="w-full"
               >
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="activity">Activity</TabsTrigger>
+                  <TabsTrigger value="badges">Badges</TabsTrigger>
+                  <TabsTrigger value="connections">Connections</TabsTrigger>
                   <TabsTrigger value="bookmarks">Bookmarks</TabsTrigger>
                 </TabsList>
 
@@ -193,79 +177,12 @@ export default function Profile() {
                       </p>
                     </div>
 
-                    <div>
-                      <h3 className="text-lg font-medium">Badges</h3>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {profile.badges.length > 0 ? (
-                          profile.badges.map((badge) => (
-                            <Badge key={badge.id} className={badge.color}>
-                              <span className="mr-1">{badge.icon}</span>
-                              {badge.name}
-                            </Badge>
-                          ))
-                        ) : (
-                          <p className="text-sm text-gray-500">
-                            No badges earned yet. Participate in the forum to
-                            earn badges!
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="text-lg font-medium">Available Badges</h3>
-                      <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {profile.allBadges
-                          .filter(
-                            (badge) =>
-                              !profile.badges.some(
-                                (userBadge) => userBadge.id === badge.id,
-                              ),
-                          )
-                          .slice(0, 6) // Show only first 6 available badges
-                          .map((badge) => (
-                            <div
-                              key={badge.id}
-                              className="flex items-center p-2 border border-gray-200 rounded-md bg-gray-50"
-                            >
-                              <div
-                                className={`w-8 h-8 flex items-center justify-center rounded-full mr-2 ${badge.color.split(" ").slice(0, 2).join(" ")}`}
-                              >
-                                <span>{badge.icon}</span>
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium">
-                                  {badge.name}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {badge.description}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                      {profile.allBadges.filter(
-                        (badge) =>
-                          !profile.badges.some(
-                            (userBadge) => userBadge.id === badge.id,
-                          ),
-                      ).length > 6 && (
-                        <p className="text-xs text-center mt-2 text-gray-500">
-                          And{" "}
-                          {profile.allBadges.filter(
-                            (badge) =>
-                              !profile.badges.some(
-                                (userBadge) => userBadge.id === badge.id,
-                              ),
-                          ).length - 6}{" "}
-                          more badges to unlock!
-                        </p>
-                      )}
-                    </div>
+                    {/* Experience Card */}
+                    <ExpCard userId={user.id} />
 
                     <div>
                       <h3 className="text-lg font-medium">Quick Links</h3>
-                      <div className="mt-2 grid grid-cols-2 gap-3">
+                      <div className="mt-2 grid grid-cols-3 gap-3">
                         <Link to="/forum">
                           <Button
                             variant="outline"
@@ -287,19 +204,29 @@ export default function Profile() {
                             </span>
                           </Button>
                         </Link>
+
+                        <Link to="/messages">
+                          <Button
+                            variant="outline"
+                            className="w-full h-16 flex flex-col items-center justify-center gap-1 border-gray-200 hover:border-green-200 hover:bg-green-50"
+                          >
+                            <Mail className="h-5 w-5 text-green-500" />
+                            <span className="text-xs font-medium">
+                              Messages
+                            </span>
+                          </Button>
+                        </Link>
                       </div>
                     </div>
                   </div>
                 </TabsContent>
 
-                <TabsContent value="activity" className="mt-6">
-                  <div className="space-y-6">
-                    <div className="text-center py-8">
-                      <p className="text-gray-500">
-                        Activity feed coming soon!
-                      </p>
-                    </div>
-                  </div>
+                <TabsContent value="badges" className="mt-6">
+                  <BadgeCollection userId={user.id} />
+                </TabsContent>
+
+                <TabsContent value="connections" className="mt-6">
+                  <FollowSection userId={user.id} />
                 </TabsContent>
 
                 <TabsContent value="bookmarks" className="mt-6">
@@ -310,6 +237,6 @@ export default function Profile() {
           </Card>
         </div>
       </div>
-    </div>
+    </MainLayout>
   );
 }

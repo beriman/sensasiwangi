@@ -1,16 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import { getUnreadMessageCount } from "@/lib/messages";
-import { useAuth } from "../../../supabase/auth";
-import { supabase } from "../../../supabase/supabase";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth-provider";
 
 interface UnreadMessagesIndicatorProps {
   className?: string;
 }
 
-export default function UnreadMessagesIndicator({
-  className = "",
-}: UnreadMessagesIndicatorProps) {
+export function UnreadMessagesIndicator({ className }: UnreadMessagesIndicatorProps) {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -19,60 +16,52 @@ export default function UnreadMessagesIndicator({
 
     const fetchUnreadCount = async () => {
       try {
-        const count = await getUnreadMessageCount(user.id);
-        setUnreadCount(count);
+        // Get count of conversations with unread messages
+        const { count, error } = await supabase
+          .from("private_conversation_participants")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("has_unread", true);
+        
+        if (error) throw error;
+        
+        setUnreadCount(count || 0);
       } catch (error) {
-        console.error("Error fetching unread count:", error);
+        console.error("Error fetching unread messages count:", error);
       }
     };
-
+    
     fetchUnreadCount();
-
-    // Set up real-time subscription for new messages
+    
+    // Set up realtime subscription for message notifications
     const subscription = supabase
-      .channel("private_messages_unread_channel")
+      .channel("chat_notifications")
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
-          table: "private_messages",
-        },
-        (payload) => {
-          const newMessage = payload.new as any;
-          // If the message is not from the current user, increment unread count
-          if (newMessage.sender_id !== user.id) {
-            fetchUnreadCount();
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "private_conversation_participants",
+          table: "chat_notifications",
+          filter: `user_id=eq.${user.id}`,
         },
         () => {
-          // When conversation is marked as read, update count
           fetchUnreadCount();
-        },
+        }
       )
       .subscribe();
-
+    
     return () => {
-      supabase.removeChannel(subscription);
+      subscription.unsubscribe();
     };
   }, [user]);
 
-  if (unreadCount === 0) return null;
+  if (unreadCount === 0) {
+    return null;
+  }
 
   return (
-    <Badge
-      className={`bg-red-500 text-white hover:bg-red-600 ${className}`}
-      variant="secondary"
-    >
-      {unreadCount > 99 ? "99+" : unreadCount}
+    <Badge className={`h-5 w-5 flex items-center justify-center p-0 bg-red-500 ${className}`}>
+      {unreadCount > 9 ? "9+" : unreadCount}
     </Badge>
   );
 }

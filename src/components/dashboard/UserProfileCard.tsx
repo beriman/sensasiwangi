@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -28,12 +28,9 @@ import {
   TrendingUp,
   ShoppingCart,
 } from "lucide-react";
-import { useAuth } from "../../../supabase/auth";
-import { supabase } from "../../../supabase/supabase";
-import { useEffect, useState, useRef } from "react";
-import { getUserBadges } from "@/lib/forum";
-import { ForumBadge } from "@/types/forum";
-import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/lib/auth-provider";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/use-toast";
 import { calculateLevelProgress } from "@/lib/reputation";
 import {
   Tooltip,
@@ -41,10 +38,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import SocialStats from "@/components/profile/SocialStats";
-import MessageButton from "@/components/messages/MessageButton";
-import FollowButton from "@/components/profile/FollowButton";
-import { getProductsBySeller } from "@/lib/marketplace";
 
 interface UserProfileData {
   username: string;
@@ -55,7 +48,6 @@ interface UserProfileData {
   custom_title?: string;
   has_custom_title?: boolean;
   membership: "free" | "business";
-  badges: ForumBadge[];
   exp: number;
   level: number;
   thread_count: number;
@@ -81,15 +73,23 @@ interface UserProfileData {
   };
 }
 
-// Reputation level calculation is now handled by the reputation.ts module
+// Helper function to get initials from name
+const getInitials = (name: string) => {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .substring(0, 2);
+};
 
 export default function UserProfileCard() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [profileData, setProfileData] = useState<UserProfileData>({
     username: "User",
     avatar_url: "",
     membership: "free",
-    badges: [],
     exp: 0,
     level: 0,
     thread_count: 0,
@@ -98,115 +98,17 @@ export default function UserProfileCard() {
       received: 0,
       given: 0,
     },
-    leaderboard_position: undefined,
-    seller_info: undefined,
-    buyer_info: undefined,
   });
   const [isUploading, setIsUploading] = useState(false);
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [bioText, setBioText] = useState("");
-  const avatarInputRef = useRef<HTMLInputElement>(null);
-  const coverPhotoInputRef = useRef<HTMLInputElement>(null);
-
-  // Fetch seller information
-  const fetchSellerInfo = async (userId: string) => {
-    try {
-      // Get total products count
-      const { count: totalProducts } = await supabase
-        .from("marketplace_products")
-        .select("*", { count: "exact", head: true })
-        .eq("seller_id", userId);
-
-      // Get active products count
-      const { count: activeProducts } = await supabase
-        .from("marketplace_products")
-        .select("*", { count: "exact", head: true })
-        .eq("seller_id", userId)
-        .eq("status", "active");
-
-      // Get seller's average rating
-      let avgRating = 0;
-      let reviewCount = 0;
-
-      try {
-        const { data: ratingData } = await supabase
-          .rpc("get_seller_rating", { seller_id: userId })
-          .single();
-
-        if (ratingData) {
-          avgRating = ratingData.avg_rating || 0;
-          reviewCount = ratingData.review_count || 0;
-        }
-      } catch (ratingError) {
-        console.error("Error fetching seller rating:", ratingError);
-        // Continue with default values if RPC fails
-      }
-
-      // Get total sales count
-      const { count: totalSales } = await supabase
-        .from("marketplace_orders")
-        .select("*", { count: "exact", head: true })
-        .eq("seller_id", userId)
-        .eq("status", "completed");
-
-      return {
-        total_products: totalProducts || 0,
-        active_products: activeProducts || 0,
-        avg_rating: avgRating,
-        review_count: reviewCount,
-        total_sales: totalSales || 0,
-      };
-    } catch (error) {
-      console.error("Error fetching seller info:", error);
-      return undefined;
-    }
-  };
-
-  // Fetch buyer information
-  const fetchBuyerInfo = async (userId: string) => {
-    try {
-      // Get total purchases count
-      const { count: totalPurchases } = await supabase
-        .from("marketplace_orders")
-        .select("*", { count: "exact", head: true })
-        .eq("buyer_id", userId);
-
-      // Get pending orders count
-      const { count: pendingOrders } = await supabase
-        .from("marketplace_orders")
-        .select("*", { count: "exact", head: true })
-        .eq("buyer_id", userId)
-        .in("status", ["pending", "processing", "shipped"]);
-
-      // Get completed orders count
-      const { count: completedOrders } = await supabase
-        .from("marketplace_orders")
-        .select("*", { count: "exact", head: true })
-        .eq("buyer_id", userId)
-        .eq("status", "completed");
-
-      // Get sambatan participations count
-      const { count: sambatanParticipations } = await supabase
-        .from("sambatan_participants")
-        .select("*", { count: "exact", head: true })
-        .eq("participant_id", userId);
-
-      return {
-        total_purchases: totalPurchases || 0,
-        pending_orders: pendingOrders || 0,
-        completed_orders: completedOrders || 0,
-        sambatan_participations: sambatanParticipations || 0,
-      };
-    } catch (error) {
-      console.error("Error fetching buyer info:", error);
-      return undefined;
-    }
-  };
+  const avatarInputRef = React.useRef<HTMLInputElement>(null);
+  const coverPhotoInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!user) return;
+    if (!user) return;
 
+    const fetchUserProfile = async () => {
       try {
         // Get user profile data
         const { data: userData, error } = await supabase
@@ -218,9 +120,6 @@ export default function UserProfileCard() {
           .single();
 
         if (error) throw error;
-
-        // Fetch user badges
-        const badges = await getUserBadges(user.id);
 
         // Get user level info based on exp
         const exp = userData?.exp || 0;
@@ -243,13 +142,10 @@ export default function UserProfileCard() {
         if (replyError) throw replyError;
 
         // Get votes received
-        const { count: votesReceived, error: votesReceivedError } =
-          await supabase
-            .from("forum_votes")
-            .select("*", { count: "exact", head: true })
-            .or(
-              `thread_id.in.(select id from forum_threads where user_id.eq.${user.id}),reply_id.in.(select id from forum_replies where user_id.eq.${user.id})`,
-            );
+        const { count: votesReceived, error: votesReceivedError } = await supabase
+          .from("forum_votes")
+          .select("*", { count: "exact", head: true })
+          .eq("target_user_id", user.id);
 
         if (votesReceivedError) throw votesReceivedError;
 
@@ -261,28 +157,73 @@ export default function UserProfileCard() {
 
         if (votesGivenError) throw votesGivenError;
 
-        // Get user's leaderboard position
-        const { data: leaderboardData, error: leaderboardError } =
-          await supabase
-            .from("users")
-            .select("id")
-            .order("exp", { ascending: false });
+        // Get marketplace seller info
+        const { data: products, error: productsError } = await supabase
+          .from("marketplace_products")
+          .select("id, price, status, avg_rating, review_count, total_sales")
+          .eq("seller_id", user.id);
 
-        let leaderboardPosition = undefined;
-        if (!leaderboardError && leaderboardData) {
-          const userIndex = leaderboardData.findIndex(
-            (item) => item.id === user.id,
-          );
-          if (userIndex !== -1) {
-            leaderboardPosition = userIndex + 1; // +1 because array is 0-indexed
-          }
+        if (productsError) throw productsError;
+
+        let sellerInfo = undefined;
+        if (products && products.length > 0) {
+          const activeProducts = products.filter(p => p.status === 'active').length;
+          const avgRating = products.reduce((sum, p) => sum + (p.avg_rating || 0), 0) / products.length;
+          const reviewCount = products.reduce((sum, p) => sum + (p.review_count || 0), 0);
+          const totalSales = products.reduce((sum, p) => sum + (p.total_sales || 0), 0);
+
+          sellerInfo = {
+            total_products: products.length,
+            active_products: activeProducts,
+            avg_rating: avgRating,
+            review_count: reviewCount,
+            total_sales: totalSales
+          };
         }
 
-        // Get seller information
-        const sellerInfo = await fetchSellerInfo(user.id);
+        // Get marketplace buyer info
+        const { data: orders, error: ordersError } = await supabase
+          .from("marketplace_orders")
+          .select("id, status")
+          .eq("buyer_id", user.id);
 
-        // Get buyer information
-        const buyerInfo = await fetchBuyerInfo(user.id);
+        if (ordersError) throw ordersError;
+
+        let buyerInfo = undefined;
+        if (orders && orders.length > 0) {
+          const pendingOrders = orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length;
+          const completedOrders = orders.filter(o => o.status === 'completed').length;
+
+          // Get sambatan participations
+          const { count: sambatanCount, error: sambatanError } = await supabase
+            .from("sambatan_participants")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id);
+
+          if (sambatanError) throw sambatanError;
+
+          buyerInfo = {
+            total_purchases: orders.length,
+            pending_orders: pendingOrders,
+            completed_orders: completedOrders,
+            sambatan_participations: sambatanCount || 0
+          };
+        }
+
+        // Get leaderboard position
+        let leaderboardPosition = undefined;
+        const { data: leaderboardData, error: leaderboardError } = await supabase
+          .from("users")
+          .select("id")
+          .order("exp", { ascending: false })
+          .limit(100);
+
+        if (!leaderboardError && leaderboardData) {
+          const position = leaderboardData.findIndex(u => u.id === user.id);
+          if (position !== -1) {
+            leaderboardPosition = position + 1;
+          }
+        }
 
         setProfileData({
           username: userData?.username || user.email?.split("@")[0] || "User",
@@ -293,7 +234,6 @@ export default function UserProfileCard() {
           custom_title: userData?.custom_title,
           has_custom_title: userData?.has_custom_title,
           membership: userData?.membership || "free",
-          badges: badges,
           exp: exp,
           level: currentLevel.level,
           thread_count: threadCount || 0,
@@ -316,10 +256,8 @@ export default function UserProfileCard() {
     fetchUserProfile();
   }, [user]);
 
-  const handleAvatarUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    if (!user || !event.target.files || event.target.files.length === 0) return;
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user || !event.target.files || !event.target.files[0]) return;
 
     try {
       setIsUploading(true);
@@ -349,21 +287,29 @@ export default function UserProfileCard() {
       if (updateError) throw updateError;
 
       // Update local state
-      setProfileData((prev) => ({
-        ...prev,
+      setProfileData({
+        ...profileData,
         avatar_url: urlData.publicUrl,
-      }));
+      });
+
+      toast({
+        title: "Avatar updated",
+        description: "Your profile avatar has been updated successfully.",
+      });
     } catch (error) {
       console.error("Error uploading avatar:", error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload avatar. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleCoverPhotoUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    if (!user || !event.target.files || event.target.files.length === 0) return;
+  const handleCoverPhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user || !event.target.files || !event.target.files[0]) return;
 
     try {
       setIsUploading(true);
@@ -393,18 +339,28 @@ export default function UserProfileCard() {
       if (updateError) throw updateError;
 
       // Update local state
-      setProfileData((prev) => ({
-        ...prev,
+      setProfileData({
+        ...profileData,
         cover_photo_url: urlData.publicUrl,
-      }));
+      });
+
+      toast({
+        title: "Cover photo updated",
+        description: "Your profile cover photo has been updated successfully.",
+      });
     } catch (error) {
       console.error("Error uploading cover photo:", error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload cover photo. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsUploading(false);
     }
   };
 
-  const saveBio = async () => {
+  const handleBioUpdate = async () => {
     if (!user) return;
 
     try {
@@ -415,23 +371,24 @@ export default function UserProfileCard() {
 
       if (error) throw error;
 
-      // Update local state
-      setProfileData((prev) => ({
-        ...prev,
+      setProfileData({
+        ...profileData,
         bio: bioText,
-      }));
+      });
       setIsEditingBio(false);
+
+      toast({
+        title: "Bio updated",
+        description: "Your profile bio has been updated successfully.",
+      });
     } catch (error) {
       console.error("Error updating bio:", error);
+      toast({
+        title: "Update failed",
+        description: "Failed to update bio. Please try again.",
+        variant: "destructive",
+      });
     }
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
   };
 
   // Get reputation level info
@@ -497,7 +454,7 @@ export default function UserProfileCard() {
           <div className="relative -mt-16 mb-4">
             <Avatar className="h-24 w-24 border-4 border-white shadow-md">
               <AvatarImage
-                src={profileData.avatar_url}
+                src={profileData.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email}`}
                 alt={profileData.username}
               />
               <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-xl font-semibold">
@@ -544,201 +501,114 @@ export default function UserProfileCard() {
             </p>
           )}
 
-          {profileData.has_custom_title && profileData.custom_title && (
-            <Badge className="mt-1 bg-gradient-to-r from-amber-400 to-amber-600 text-white border-0">
-              {profileData.custom_title}
-            </Badge>
-          )}
-
-          {/* Bio Section */}
-          <div className="w-full mt-3 mb-3">
-            {isEditingBio ? (
-              <div className="space-y-2">
-                <textarea
-                  value={bioText}
-                  onChange={(e) => setBioText(e.target.value)}
-                  className="w-full p-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-300"
-                  rows={3}
-                  placeholder="Write something about yourself..."
-                  maxLength={200}
-                />
-                <div className="flex justify-between">
-                  <span className="text-xs text-gray-500">
-                    {bioText.length}/200
-                  </span>
-                  <div className="space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs h-7 px-2"
-                      onClick={() => {
-                        setBioText(profileData.bio || "");
-                        setIsEditingBio(false);
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="text-xs h-7 px-2 bg-purple-600 hover:bg-purple-700"
-                      onClick={saveBio}
-                    >
-                      Save
-                    </Button>
-                  </div>
-                </div>
-              </div>
+          {/* Membership Badge */}
+          <div className="mt-2">
+            {profileData.membership === "business" ? (
+              <Badge className="bg-gradient-to-r from-amber-400 to-amber-600 text-white border-0">
+                <Crown className="h-3 w-3 mr-1" />
+                Business Membership
+              </Badge>
             ) : (
-              <div className="relative p-3 bg-gray-50 rounded-md text-sm text-gray-600">
-                {profileData.bio ? (
-                  <p>{profileData.bio}</p>
-                ) : (
-                  <p className="text-gray-400 italic">No bio provided</p>
-                )}
-                {user && (
+              <div className="flex items-center gap-2">
+                <Badge className="bg-gray-100 text-gray-800">
+                  <User className="h-3 w-3 mr-1" />
+                  Free Membership
+                </Badge>
+                <Link to="/settings">
                   <Button
-                    size="icon"
-                    variant="ghost"
-                    className="absolute top-2 right-2 h-6 w-6 text-gray-400 hover:text-gray-600"
-                    onClick={() => setIsEditingBio(true)}
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs border-amber-400 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
                   >
-                    <Pencil className="h-3.5 w-3.5" />
+                    <Crown className="h-3 w-3 mr-1" />
+                    Upgrade
                   </Button>
-                )}
+                </Link>
               </div>
             )}
           </div>
 
           {/* Level and XP Display */}
-          <div className="mt-1 flex items-center gap-2">
-            <Badge className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-0">
-              <Zap className="h-3 w-3 mr-1" />
-              Level {profileData.level}: {currentLevel.title}
-            </Badge>
-            <span className="text-xs text-gray-500">{profileData.exp} XP</span>
-            {profileData.leaderboard_position && (
-              <Badge className="bg-gradient-to-r from-amber-400 to-amber-600 text-white border-0">
-                <Trophy className="h-3 w-3 mr-1" />
-                Rank #{profileData.leaderboard_position}
-              </Badge>
-            )}
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            {currentLevel.description}
-          </p>
-
-          {/* XP Progress Bar */}
-          <div className="w-full mt-2 mb-3">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
-              <span>
-                {nextLevel ? `Progress to ${nextLevel.title}` : "Max Level"}
+          <div className="mt-3 w-full">
+            <div className="flex justify-between items-center text-sm mb-1">
+              <span className="font-medium flex items-center">
+                <Zap className="h-4 w-4 mr-1 text-purple-500" />
+                Level {profileData.level}
               </span>
-              <span>{progressPercentage}%</span>
+              <span className="text-gray-500 text-xs">
+                {profileData.exp} / {nextLevel.expRequired} XP
+              </span>
             </div>
-            <Progress value={progressPercentage} className="h-2" />
-            {nextLevel && (
-              <div className="text-xs text-gray-500 mt-1 text-right">
-                {expToNextLevel} XP needed
-              </div>
-            )}
+            <div className="w-full bg-gray-100 rounded-full h-2">
+              <div
+                className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full"
+                style={{ width: `${progressPercentage}%` }}
+              ></div>
+            </div>
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>{currentLevel.title}</span>
+              <span>{nextLevel.title}</span>
+            </div>
           </div>
 
-          <div className="mt-1 flex items-center gap-2">
-            <Badge
-              className={
-                profileData.membership === "business"
-                  ? "bg-gradient-to-r from-amber-400 to-amber-600 text-white border-0"
-                  : "bg-gray-100 text-gray-800"
-              }
-            >
-              <Crown className="h-3 w-3 mr-1" />
-              {profileData.membership === "business" ? "Business" : "Free"}{" "}
-              Membership
-            </Badge>
-
-            {profileData.membership === "free" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 text-xs border-amber-400 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
-              >
-                Upgrade
-              </Button>
-            )}
-          </div>
-
-          <div className="mt-4">
-            <h4 className="text-xs font-medium text-gray-500 mb-2 text-center">
-              Badges & Achievements
-            </h4>
-            <div className="flex flex-wrap justify-center gap-2">
-              {profileData.badges.length > 0 ? (
-                profileData.badges.map((badge) => (
-                  <TooltipProvider key={badge.id}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Badge className={badge.color}>
-                          <span className="mr-1">{badge.icon}</span>
-                          {badge.name}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{badge.description}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ))
-              ) : (
-                <p className="text-xs text-gray-400 italic">
-                  No badges earned yet
-                </p>
+          {/* Bio Section */}
+          <div className="mt-4 w-full">
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="text-sm font-medium text-gray-700">About Me</h4>
+              {user && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-gray-500 hover:text-gray-700"
+                  onClick={() => setIsEditingBio(!isEditingBio)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
               )}
             </div>
-          </div>
 
-          {/* Social Stats Section */}
-          <div className="mt-4 w-full">
-            <SocialStats userId={user?.id || ""} />
-          </div>
-
-          <div className="mt-6 grid grid-cols-3 gap-3 w-full">
-            <Link to="/forum">
-              <Button
-                variant="outline"
-                className="w-full h-16 flex flex-col items-center justify-center gap-1 border-gray-200 hover:border-purple-200 hover:bg-purple-50"
-              >
-                <MessageSquare className="h-5 w-5 text-purple-500" />
-                <span className="text-xs font-medium">Forum</span>
-              </Button>
-            </Link>
-
-            <Link to="/messages">
-              <Button
-                variant="outline"
-                className="w-full h-16 flex flex-col items-center justify-center gap-1 border-gray-200 hover:border-purple-200 hover:bg-purple-50"
-              >
-                <Mail className="h-5 w-5 text-purple-500" />
-                <span className="text-xs font-medium">Messages</span>
-              </Button>
-            </Link>
-
-            <Link to="/profile">
-              <Button
-                variant="outline"
-                className="w-full h-16 flex flex-col items-center justify-center gap-1 border-gray-200 hover:border-green-200 hover:bg-green-50"
-              >
-                <User className="h-5 w-5 text-green-500" />
-                <span className="text-xs font-medium">Profile</span>
-              </Button>
-            </Link>
+            {isEditingBio ? (
+              <div className="space-y-2">
+                <textarea
+                  value={bioText}
+                  onChange={(e) => setBioText(e.target.value)}
+                  className="w-full p-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  rows={3}
+                  placeholder="Write something about yourself..."
+                />
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsEditingBio(false);
+                      setBioText(profileData.bio || "");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleBioUpdate}>
+                    Save
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600">
+                {profileData.bio || (
+                  <span className="text-gray-400 italic">
+                    No bio provided. Click the edit button to add one.
+                  </span>
+                )}
+              </p>
+            )}
           </div>
 
           {/* User Statistics Section */}
           <div className="mt-4 w-full">
-            <h4 className="text-xs font-medium text-gray-500 mb-2">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">
               User Statistics
             </h4>
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-2 gap-3">
               <div className="bg-gray-50 p-3 rounded-md">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
@@ -762,8 +632,7 @@ export default function UserProfileCard() {
                     <span className="text-sm font-medium">Votes</span>
                   </div>
                   <span className="text-lg font-semibold text-gray-700">
-                    {profileData.vote_count.received +
-                      profileData.vote_count.given}
+                    {profileData.vote_count.received}
                   </span>
                 </div>
                 <div className="mt-1 flex justify-between text-xs text-gray-500">
@@ -772,157 +641,41 @@ export default function UserProfileCard() {
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Marketplace Statistics Section */}
-            <h4 className="text-xs font-medium text-gray-500 mb-2">
-              Marketplace Statistics
+          {/* Quick Actions */}
+          <div className="mt-4 w-full">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">
+              Quick Actions
             </h4>
-
-            {/* Seller Information */}
-            {profileData.seller_info && (
-              <div className="mb-4">
-                <div className="flex items-center mb-2">
-                  <ShoppingBag className="h-4 w-4 mr-2 text-amber-500" />
-                  <h5 className="text-sm font-medium text-gray-700">
-                    Seller Information
-                  </h5>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-amber-50 p-3 rounded-md">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Package className="h-4 w-4 mr-2 text-amber-600" />
-                        <span className="text-sm font-medium">Products</span>
-                      </div>
-                      <span className="text-lg font-semibold text-gray-700">
-                        {profileData.seller_info.total_products}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex justify-between text-xs text-gray-500">
-                      <span>
-                        Active: {profileData.seller_info.active_products}
-                      </span>
-                      <span>Sales: {profileData.seller_info.total_sales}</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-amber-50 p-3 rounded-md">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Star className="h-4 w-4 mr-2 text-amber-600" />
-                        <span className="text-sm font-medium">Rating</span>
-                      </div>
-                      <span className="text-lg font-semibold text-gray-700">
-                        {(profileData.seller_info.avg_rating || 0).toFixed(1)}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex justify-between text-xs text-gray-500">
-                      <span>
-                        From {profileData.seller_info.review_count} reviews
-                      </span>
-                      <span>
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <span
-                            key={i}
-                            className={
-                              i <
-                              Math.round(
-                                profileData.seller_info?.avg_rating || 0,
-                              )
-                                ? "text-amber-500"
-                                : "text-gray-300"
-                            }
-                          >
-                            ★
-                          </span>
-                        ))}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Buyer Information */}
-            {profileData.buyer_info && (
-              <div className="mb-4">
-                <div className="flex items-center mb-2">
-                  <ShoppingCart className="h-4 w-4 mr-2 text-blue-500" />
-                  <h5 className="text-sm font-medium text-gray-700">
-                    Buyer Information
-                  </h5>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-blue-50 p-3 rounded-md">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Package className="h-4 w-4 mr-2 text-blue-600" />
-                        <span className="text-sm font-medium">Orders</span>
-                      </div>
-                      <span className="text-lg font-semibold text-gray-700">
-                        {profileData.buyer_info.total_purchases}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex justify-between text-xs text-gray-500">
-                      <span>
-                        Pending: {profileData.buyer_info.pending_orders}
-                      </span>
-                      <span>
-                        Completed: {profileData.buyer_info.completed_orders}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-50 p-3 rounded-md">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Users className="h-4 w-4 mr-2 text-blue-600" />
-                        <span className="text-sm font-medium">Sambatan</span>
-                      </div>
-                      <span className="text-lg font-semibold text-gray-700">
-                        {profileData.buyer_info.sambatan_participations}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs text-gray-500">
-                      <span>Group purchase participations</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {!profileData.seller_info && !profileData.buyer_info && (
-              <div className="bg-gray-50 p-4 rounded-md text-center mb-4">
-                <TrendingUp className="h-5 w-5 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-500">
-                  No marketplace activity yet
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Start buying or selling to see your statistics
-                </p>
-              </div>
-            )}
-
-            <h4 className="text-xs font-medium text-gray-500 mb-2">
-              Available Features
-            </h4>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="flex items-center text-gray-600">
-                <Tag className="h-3 w-3 mr-1 text-purple-500" />
-                <span>Thread Categories & Tags</span>
-              </div>
-              <div className="flex items-center text-gray-600">
-                <Edit className="h-3 w-3 mr-1 text-purple-500" />
-                <span>Rich Text Editor</span>
-              </div>
-              <div className="flex items-center text-gray-600">
-                <Pin className="h-3 w-3 mr-1 text-purple-500" />
-                <span>Thread Pinning</span>
-              </div>
-              <div className="flex items-center text-gray-600">
-                <Mail className="h-3 w-3 mr-1 text-purple-500" />
-                <span>Private Messaging</span>
-              </div>
+            <div className="grid grid-cols-3 gap-2">
+              <Link to="/profile">
+                <Button
+                  variant="outline"
+                  className="w-full h-10 flex flex-col items-center justify-center gap-1 border-gray-200 hover:border-purple-200 hover:bg-purple-50"
+                >
+                  <User className="h-4 w-4 text-purple-500" />
+                  <span className="text-xs">Profile</span>
+                </Button>
+              </Link>
+              <Link to="/messages">
+                <Button
+                  variant="outline"
+                  className="w-full h-10 flex flex-col items-center justify-center gap-1 border-gray-200 hover:border-blue-200 hover:bg-blue-50"
+                >
+                  <MessageSquare className="h-4 w-4 text-blue-500" />
+                  <span className="text-xs">Messages</span>
+                </Button>
+              </Link>
+              <Link to="/marketplace/my-shop">
+                <Button
+                  variant="outline"
+                  className="w-full h-10 flex flex-col items-center justify-center gap-1 border-gray-200 hover:border-amber-200 hover:bg-amber-50"
+                >
+                  <ShoppingBag className="h-4 w-4 text-amber-500" />
+                  <span className="text-xs">My Shop</span>
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
