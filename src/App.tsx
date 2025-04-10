@@ -16,7 +16,7 @@ import AdminPanel from "./components/pages/admin";
 import Profile from "./components/pages/profile";
 import Settings from "./components/pages/settings";
 import Messages from "./components/pages/messages";
-import { AuthProvider, useAuth } from "../supabase/auth";
+import { AuthProvider, useAuth } from "./lib/auth-provider";
 import { SupabaseProvider } from "./lib/supabase-provider";
 import { Toaster } from "./components/ui/toaster";
 import { LoadingScreen, LoadingSpinner } from "./components/ui/loading-spinner";

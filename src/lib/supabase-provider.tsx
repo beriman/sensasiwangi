@@ -6,7 +6,7 @@ import {
   ReactNode,
 } from "react";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { supabase } from "../../supabase/supabase";
+import { supabase } from "./supabase";
 import { Database } from "../types/supabase";
 
 type SupabaseContext = {
