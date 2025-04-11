@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import { Navigate, Route, Routes, useRoutes } from "react-router-dom";
-import routes from "tempo-routes";
 import LoginForm from "./components/auth/LoginForm";
 import SignUpForm from "./components/auth/SignUpForm";
 import Dashboard from "./components/pages/dashboard";
@@ -58,7 +57,7 @@ function AppRoutes() {
   return (
     <>
       {/* Tempo routes should be rendered first */}
-      {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
+      {/* import.meta.env.VITE_TEMPO === "true" && useRoutes(routes) */}
 
       <Routes>
         <Route path="/" element={<Home />} />
