@@ -141,7 +141,7 @@ function AppRoutes() {
           }
         />
         {/* Add tempobook route inside Routes */}
-        {import.meta.env.VITE_TEMPO === "true" && (
+        {process.env.VITE_TEMPO === "true" && (
           <Route path="/tempobook/*" element={<div />} />
         )}
       </Routes>
