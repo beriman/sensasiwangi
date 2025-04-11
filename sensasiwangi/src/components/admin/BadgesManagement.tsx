@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../../supabase/supabase";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/components/ui/use-toast";
+import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
+import { Button } from "../../ui/button";
+import { Badge } from "../../ui/badge";
+import { useToast } from "../../ui/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -11,9 +11,9 @@ import {
   DialogTitle,
   DialogFooter,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "../../ui/dialog";
+import { Input } from "../../ui/input";
+import { Label } from "../../ui/label";
 import { Award, Trash2, Plus } from "lucide-react";
 
 type UserBadge = {
