@@ -1,10 +1,19 @@
 [build]
   base = "/"  # Build from the root directory, not from sensasiwangi
-  command = "npm run build"
+  command = "bash netlify-build.sh"
   publish = ".next"
 
 [build.environment]
   NETLIFY_NEXT_PLUGIN_SKIP = "true"
+  # Add environment variables needed for build
+  NEXT_PUBLIC_SUPABASE_URL = "https://schstfgcamkqvvxhmrlg.supabase.co"
+  NEXT_PUBLIC_SITE_URL = "https://sensasiwangi.id"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Handle client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
