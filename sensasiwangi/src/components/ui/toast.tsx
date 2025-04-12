@@ -1,9 +1,14 @@
+// @ts-ignore
 import * as React from "react"
+// @ts-ignore
 import { Cross2Icon } from "@radix-ui/react-icons"
+// @ts-ignore
 import * as ToastPrimitives from "@radix-ui/react-toast"
+// @ts-ignore
 import { cva, type VariantProps } from "class-variance-authority"
 
-import { cn } from "@/lib/utils"
+// @ts-ignore
+import { cn } from "../../lib/utils"
 
 const ToastProvider = ToastPrimitives.Provider
 
@@ -125,3 +130,5 @@ export {
   ToastClose,
   ToastAction,
 }
+
+

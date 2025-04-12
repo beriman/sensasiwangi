@@ -13,9 +13,9 @@ import {
   archiveConversation as archiveConversationApi,
   unarchiveConversation as unarchiveConversationApi,
   deleteConversation as deleteConversationApi,
-} from "@/lib/messages";
-import { PrivateConversation, PrivateMessage } from "@/types/messages";
-import { useToast } from "@/components/ui/use-toast";
+} from "../lib/messages";
+import { PrivateConversation, PrivateMessage } from "../types/messages";
+import { useToast } from "../components/ui/use-toast";
 
 interface ConversationContextType {
   conversations: PrivateConversation[];
@@ -404,3 +404,4 @@ function ConversationProviderComponent({
 
 // Export the provider as a constant for better HMR support
 export const ConversationProvider = ConversationProviderComponent;
+

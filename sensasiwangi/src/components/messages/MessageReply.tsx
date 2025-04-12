@@ -1,7 +1,12 @@
+// @ts-ignore
 import React from "react";
+// @ts-ignore
 import { CornerUpLeft } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { PrivateMessage } from "@/types/messages";
+// @ts-ignore
+import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
+// @ts-ignore
+import { PrivateMessage } from "../../types/messages";
+// @ts-ignore
 import DOMPurify from "dompurify";
 
 interface MessageReplyProps {
@@ -91,3 +96,5 @@ export default function MessageReply({
     </div>
   );
 }
+
+

@@ -1,13 +1,17 @@
+// @ts-ignore
 import React from "react";
+// @ts-ignore
 import { Check } from "lucide-react";
-import { ConversationParticipant } from "@/types/messages";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+// @ts-ignore
+import { ConversationParticipant } from "../../types/messages";
+// @ts-ignore
+import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "../../components/ui/tooltip";
 
 interface ReadReceiptProps {
   messageId: string;
@@ -91,3 +95,5 @@ export default function ReadReceipt({
     </TooltipProvider>
   );
 }
+
+

@@ -3,10 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Award, Zap, Trophy, Star, TrendingUp } from "lucide-react";
-import { supabase } from "../../../supabase/supabase";
+import { supabase } from "../../supabase/supabase";
 import { useAuth } from "../../../supabase/auth";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { calculateLevelProgress } from "@/lib/reputation";
+import { calculateLevelProgress } from "../../lib/reputation";
 
 interface ExpCardProps {
   userId: string;
@@ -20,7 +20,7 @@ interface UserExpData {
   totalUsers: number;
 }
 
-export default function ExpCard({ userId, className = "" }: ExpCardProps) {
+function ExpCard({ userId, className = "" }: ExpCardProps) {
   const { user } = useAuth();
   const [expData, setExpData] = useState<UserExpData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -187,3 +187,6 @@ export default function ExpCard({ userId, className = "" }: ExpCardProps) {
     </Card>
   );
 }
+
+export { ExpCard };
+export default ExpCard;

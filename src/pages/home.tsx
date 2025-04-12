@@ -1,10 +1,13 @@
 import React from 'react';
 import { useRouter } from 'next/router';
-import { MainLayout } from '../components/layout/MainLayout';
+import Head from 'next/head';
 
 export default function HomePage() {
   return (
-    <MainLayout>
+    <>
+      <Head>
+        <title>Sensasiwangi - Home</title>
+      </Head>
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Welcome to Sensasiwangi</h1>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -46,6 +49,6 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-    </MainLayout>
+    </>
   );
 }

@@ -3,17 +3,17 @@ import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
 import { supabase } from "@/lib/supabase";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAuth } from "@/lib/auth-provider";
-import { 
-  MessageSquare, 
-  Eye, 
-  ThumbsUp, 
-  Clock, 
-  Pin, 
-  Award, 
+import {
+  MessageSquare,
+  Eye,
+  ThumbsUp,
+  Clock,
+  Pin,
+  Award,
   PlusCircle,
   ChevronLeft,
   ChevronRight,
@@ -25,7 +25,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "../../components/ui/select";
 
 interface ForumThread {
   id: string;
@@ -54,7 +54,7 @@ interface ForumThreadListProps {
   categoryId: string;
 }
 
-export default function ForumThreadList({ categoryId }: ForumThreadListProps) {
+function ForumThreadList({ categoryId }: ForumThreadListProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [threads, setThreads] = useState<ForumThread[]>([]);
@@ -69,11 +69,11 @@ export default function ForumThreadList({ categoryId }: ForumThreadListProps) {
     const fetchThreads = async () => {
       try {
         setLoading(true);
-        
+
         // Calculate pagination
         const from = (page - 1) * pageSize;
         const to = from + pageSize - 1;
-        
+
         // Build query
         let query = supabase
           .from("forum_threads")
@@ -94,14 +94,14 @@ export default function ForumThreadList({ categoryId }: ForumThreadListProps) {
             last_reply_user:last_reply_user_id (username, avatar_url)
           `, { count: 'exact' })
           .eq("category_id", categoryId);
-        
+
         // Apply filters
         if (filter === "solved") {
           query = query.eq("is_solved", true);
         } else if (filter === "unsolved") {
           query = query.eq("is_solved", false);
         }
-        
+
         // Apply sorting
         if (sort === "latest") {
           query = query.order("is_pinned", { ascending: false }).order("updated_at", { ascending: false });
@@ -114,14 +114,14 @@ export default function ForumThreadList({ categoryId }: ForumThreadListProps) {
         } else if (sort === "most_voted") {
           query = query.order("is_pinned", { ascending: false }).order("vote_count", { ascending: false });
         }
-        
+
         // Apply pagination
         query = query.range(from, to);
-        
+
         const { data, count, error } = await query;
-        
+
         if (error) throw error;
-        
+
         setThreads(data || []);
         setTotalPages(Math.ceil((count || 0) / pageSize));
       } catch (error) {
@@ -130,7 +130,7 @@ export default function ForumThreadList({ categoryId }: ForumThreadListProps) {
         setLoading(false);
       }
     };
-    
+
     fetchThreads();
   }, [categoryId, page, sort, filter]);
 
@@ -140,7 +140,7 @@ export default function ForumThreadList({ categoryId }: ForumThreadListProps) {
       navigate("/login", { state: { from: `/forum/category/${categoryId}` } });
       return;
     }
-    
+
     navigate(`/forum/new-thread/${categoryId}`);
   };
 
@@ -169,7 +169,7 @@ export default function ForumThreadList({ categoryId }: ForumThreadListProps) {
             </SelectContent>
           </Select>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <Select value={sort} onValueChange={setSort}>
             <SelectTrigger className="w-[150px]">
@@ -183,14 +183,14 @@ export default function ForumThreadList({ categoryId }: ForumThreadListProps) {
               <SelectItem value="most_voted">Most Votes</SelectItem>
             </SelectContent>
           </Select>
-          
+
           <Button onClick={handleCreateThread}>
             <PlusCircle className="h-4 w-4 mr-2" />
             New Thread
           </Button>
         </div>
       </div>
-      
+
       {/* Thread List */}
       {threads.length === 0 ? (
         <Card className="p-12 text-center">
@@ -209,9 +209,9 @@ export default function ForumThreadList({ categoryId }: ForumThreadListProps) {
                   <div className="flex items-start p-6">
                     <div className="flex-shrink-0 mr-4">
                       <Avatar className="h-10 w-10">
-                        <AvatarImage 
-                          src={thread.user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${thread.user_id}`} 
-                          alt={thread.user.username} 
+                        <AvatarImage
+                          src={thread.user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${thread.user_id}`}
+                          alt={thread.user.username}
                         />
                         <AvatarFallback>{thread.user.username[0]}</AvatarFallback>
                       </Avatar>
@@ -276,7 +276,7 @@ export default function ForumThreadList({ categoryId }: ForumThreadListProps) {
           ))}
         </div>
       )}
-      
+
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex justify-center mt-8">
@@ -289,11 +289,11 @@ export default function ForumThreadList({ categoryId }: ForumThreadListProps) {
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            
+
             <span className="text-sm text-gray-500">
               Page {page} of {totalPages}
             </span>
-            
+
             <Button
               variant="outline"
               size="sm"
@@ -308,3 +308,6 @@ export default function ForumThreadList({ categoryId }: ForumThreadListProps) {
     </div>
   );
 }
+
+export { ForumThreadList };
+export default ForumThreadList;

@@ -37,10 +37,10 @@ interface NotificationPreferences {
   email_notifications: boolean;
 }
 
-export default function NotificationPreferences() {
+function NotificationPreferences() {
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const [preferences, setPreferences] = useState<NotificationPreferences>({
     new_replies: true,
     mentions: true,
@@ -54,30 +54,30 @@ export default function NotificationPreferences() {
     push_notifications: true,
     email_notifications: true
   });
-  
+
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>("notification-types");
-  
+
   useEffect(() => {
     if (user) {
       fetchNotificationPreferences();
     }
   }, [user]);
-  
+
   const fetchNotificationPreferences = async () => {
     if (!user) return;
-    
+
     try {
       setLoading(true);
-      
+
       const { data, error } = await supabase.rpc(
         'get_notification_preferences',
         { user_id_param: user.id }
       );
-      
+
       if (error) throw error;
-      
+
       setPreferences(data);
     } catch (error) {
       console.error("Error fetching notification preferences:", error);
@@ -90,13 +90,13 @@ export default function NotificationPreferences() {
       setLoading(false);
     }
   };
-  
+
   const handleSavePreferences = async () => {
     if (!user) return;
-    
+
     try {
       setSaving(true);
-      
+
       const { error } = await supabase.rpc(
         'update_notification_preferences',
         {
@@ -114,9 +114,9 @@ export default function NotificationPreferences() {
           email_notifications_param: preferences.email_notifications
         }
       );
-      
+
       if (error) throw error;
-      
+
       toast({
         title: "Preferences saved",
         description: "Your notification preferences have been updated",
@@ -132,21 +132,21 @@ export default function NotificationPreferences() {
       setSaving(false);
     }
   };
-  
+
   const handleToggle = (key: keyof NotificationPreferences) => {
     setPreferences({
       ...preferences,
       [key]: !preferences[key]
     });
   };
-  
+
   const handleDigestFrequencyChange = (value: string) => {
     setPreferences({
       ...preferences,
       email_digest_frequency: value
     });
   };
-  
+
   if (loading) {
     return (
       <Card>
@@ -160,7 +160,7 @@ export default function NotificationPreferences() {
       </Card>
     );
   }
-  
+
   return (
     <Card>
       <CardHeader>
@@ -182,7 +182,7 @@ export default function NotificationPreferences() {
               Delivery Methods
             </TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="notification-types" className="space-y-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -199,9 +199,9 @@ export default function NotificationPreferences() {
               <div className="text-sm text-gray-500 ml-6">
                 Receive notifications when someone replies to your threads
               </div>
-              
+
               <Separator />
-              
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <AtSign className="h-4 w-4 text-purple-500" />
@@ -216,9 +216,9 @@ export default function NotificationPreferences() {
               <div className="text-sm text-gray-500 ml-6">
                 Receive notifications when someone mentions you in a post
               </div>
-              
+
               <Separator />
-              
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <RefreshCw className="h-4 w-4 text-green-500" />
@@ -233,9 +233,9 @@ export default function NotificationPreferences() {
               <div className="text-sm text-gray-500 ml-6">
                 Receive notifications when threads you are subscribed to are updated
               </div>
-              
+
               <Separator />
-              
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <ThumbsUp className="h-4 w-4 text-amber-500" />
@@ -250,9 +250,9 @@ export default function NotificationPreferences() {
               <div className="text-sm text-gray-500 ml-6">
                 Receive notifications when someone votes on your posts
               </div>
-              
+
               <Separator />
-              
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Bell className="h-4 w-4 text-indigo-500" />
@@ -267,9 +267,9 @@ export default function NotificationPreferences() {
               <div className="text-sm text-gray-500 ml-6">
                 Receive notifications when someone subscribes to your threads
               </div>
-              
+
               <Separator />
-              
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Mail className="h-4 w-4 text-pink-500" />
@@ -284,9 +284,9 @@ export default function NotificationPreferences() {
               <div className="text-sm text-gray-500 ml-6">
                 Receive notifications for direct messages
               </div>
-              
+
               <Separator />
-              
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Megaphone className="h-4 w-4 text-red-500" />
@@ -301,9 +301,9 @@ export default function NotificationPreferences() {
               <div className="text-sm text-gray-500 ml-6">
                 Receive notifications for important system announcements
               </div>
-              
+
               <Separator />
-              
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Mail className="h-4 w-4 text-gray-500" />
@@ -320,7 +320,7 @@ export default function NotificationPreferences() {
               </div>
             </div>
           </TabsContent>
-          
+
           <TabsContent value="delivery-methods" className="space-y-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -337,9 +337,9 @@ export default function NotificationPreferences() {
               <div className="text-sm text-gray-500 ml-6">
                 Receive push notifications in your browser
               </div>
-              
+
               <Separator />
-              
+
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Mail className="h-4 w-4 text-green-500" />
@@ -354,9 +354,9 @@ export default function NotificationPreferences() {
               <div className="text-sm text-gray-500 ml-6">
                 Receive notifications via email
               </div>
-              
+
               <Separator />
-              
+
               <div className="space-y-2">
                 <Label htmlFor="email-digest-frequency" className="font-medium">Email Digest Frequency</Label>
                 <RadioGroup
@@ -389,7 +389,7 @@ export default function NotificationPreferences() {
             </div>
           </TabsContent>
         </Tabs>
-        
+
         <div className="flex justify-end mt-6">
           <Button onClick={handleSavePreferences} disabled={saving}>
             {saving ? (
@@ -409,3 +409,6 @@ export default function NotificationPreferences() {
     </Card>
   );
 }
+
+export { NotificationPreferences };
+export default NotificationPreferences;

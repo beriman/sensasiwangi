@@ -13,7 +13,7 @@ interface ForumLayoutProps {
   subtitle?: string;
 }
 
-export default function ForumLayout({
+function ForumLayout({
   children,
   title,
   subtitle,
@@ -58,3 +58,6 @@ export default function ForumLayout({
     </MainLayout>
   );
 }
+
+export { ForumLayout };
+export default ForumLayout;

@@ -4,7 +4,7 @@ import {
   ShippingRate,
   ShippingTrackingUpdate,
   ShippingTrackingDetail,
-} from "@/types/marketplace";
+} from "../types/marketplace";
 
 // Get all active shipping providers
 export async function getShippingProviders(): Promise<ShippingProvider[]> {
@@ -794,3 +794,4 @@ export async function getUserShippingAddress(userId: string) {
     phone: data.shipping_phone,
   };
 }
+

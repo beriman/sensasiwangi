@@ -1,6 +1,10 @@
+// @ts-ignore
 import React, { useEffect, useState } from "react";
+// @ts-ignore
 import DOMPurify from "dompurify";
+// @ts-ignore
 import { Link } from "react-router-dom";
+// @ts-ignore
 import { supabase } from "../../../supabase/supabase";
 
 interface RichTextContentProps {
@@ -109,3 +113,4 @@ export default function RichTextContent({
     />
   );
 }
+

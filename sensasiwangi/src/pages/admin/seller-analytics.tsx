@@ -1,6 +1,6 @@
 import React from "react";
-import AdminLayout from "@/components/admin/AdminLayout";
-import SellerAnalytics from "@/components/admin/SellerAnalytics";
+import AdminLayout from "../../components/admin/AdminLayout";
+import SellerAnalytics from "../../components/admin/SellerAnalytics";
 
 const SellerAnalyticsPage = () => {
   return (
@@ -11,3 +11,4 @@ const SellerAnalyticsPage = () => {
 };
 
 export default SellerAnalyticsPage;
+

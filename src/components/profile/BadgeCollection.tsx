@@ -4,10 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Award, Lock, Info, Share2 } from "lucide-react";
 import { useAuth } from "../../../supabase/auth";
-import { supabase } from "../../../supabase/supabase";
+import { supabase } from "../../supabase/supabase";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import ShareAchievement from "@/components/gamification/ShareAchievement";
-import { getUserBadges, getAllBadges } from "@/lib/forum";
+import { getUserBadges, getAllBadges } from "../../lib/forum";
 import { ForumBadge } from "@/types/forum";
 import {
   Tooltip,
@@ -28,7 +28,7 @@ interface BadgeCollectionProps {
   className?: string;
 }
 
-export default function BadgeCollection({
+function BadgeCollection({
   userId,
   className = "",
 }: BadgeCollectionProps) {
@@ -254,3 +254,6 @@ export default function BadgeCollection({
     </Card>
   );
 }
+
+export { BadgeCollection };
+export default BadgeCollection;

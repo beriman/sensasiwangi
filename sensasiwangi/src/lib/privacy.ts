@@ -4,7 +4,7 @@ import {
   UserBlock,
   PrivacySettings,
   NotificationPreferences,
-} from "@/types/privacy";
+} from "../types/privacy";
 
 // Get user's privacy settings
 export async function getPrivacySettings(
@@ -244,3 +244,4 @@ export async function isProfileVisibleToUser(
   // If private, not visible
   return false;
 }
+

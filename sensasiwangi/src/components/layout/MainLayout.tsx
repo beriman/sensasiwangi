@@ -1,7 +1,11 @@
+// @ts-ignore
 import React, { ReactNode } from "react";
+// @ts-ignore
 import { Link, useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+// @ts-ignore
+import { Button } from "../../components/ui/button";
+// @ts-ignore
+import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,7 +13,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "../../components/ui/dropdown-menu";
 import {
   Home,
   MessageSquare,
@@ -21,10 +25,14 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { useAuth } from "@/lib/auth-provider";
-import { cn } from "@/lib/utils";
-import { UnreadMessagesIndicator } from "@/components/messages/UnreadMessagesIndicator";
-import NotificationCenter from "@/components/forum/NotificationCenter";
+// @ts-ignore
+import { useAuth } from "../../lib/auth-provider";
+// @ts-ignore
+import { cn } from "../../lib/utils";
+// @ts-ignore
+import { UnreadMessagesIndicator } from "../../components/messages/UnreadMessagesIndicator";
+// @ts-ignore
+import NotificationCenter from "../../components/forum/NotificationCenter";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -253,3 +261,5 @@ export default function MainLayout({
     </div>
   );
 }
+
+

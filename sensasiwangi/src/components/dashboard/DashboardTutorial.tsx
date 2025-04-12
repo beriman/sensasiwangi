@@ -1,10 +1,13 @@
+// @ts-ignore
 import React, { useState, useEffect } from "react";
 import {
   TooltipTutorial,
   TutorialStep,
-} from "@/components/ui/tooltip-tutorial";
+} from "../../components/ui/tooltip-tutorial";
+// @ts-ignore
 import { useAuth } from "../../../supabase/auth";
-import { hasTutorialBeenSeen, markTutorialAsSeen } from "@/lib/rewards";
+// @ts-ignore
+import { hasTutorialBeenSeen, markTutorialAsSeen } from "../../lib/rewards";
 
 export default function DashboardTutorial() {
   const { user } = useAuth();
@@ -107,3 +110,5 @@ export default function DashboardTutorial() {
     />
   );
 }
+
+

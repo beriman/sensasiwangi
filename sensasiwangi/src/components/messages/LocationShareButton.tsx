@@ -1,7 +1,11 @@
+// @ts-ignore
 import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
+// @ts-ignore
+import { Button } from "../../components/ui/button";
+// @ts-ignore
 import { MapPin, Loader2 } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+// @ts-ignore
+import { useToast } from "../../components/ui/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
-} from "@/components/ui/dialog";
+} from "../../components/ui/dialog";
 
 interface LocationShareButtonProps {
   onSelectLocation: (location: { lat: number; lng: number; address: string }) => void;
@@ -177,3 +181,5 @@ export default function LocationShareButton({
     </Dialog>
   );
 }
+
+

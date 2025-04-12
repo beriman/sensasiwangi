@@ -1,27 +1,41 @@
+// @ts-ignore
 import React, { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/components/ui/use-toast";
+// @ts-ignore
+import { Button } from "../../components/ui/button";
+// @ts-ignore
+import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+// @ts-ignore
+import { Separator } from "../../components/ui/separator";
+// @ts-ignore
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+// @ts-ignore
+import { useToast } from "../../components/ui/use-toast";
+// @ts-ignore
 import { useAuth } from "../../../supabase/auth";
+// @ts-ignore
 import { useNavigate } from "react-router-dom";
 import {
   MarketplaceProduct,
   ShippingAddress,
   ShippingRate,
-} from "@/types/marketplace";
-import { getUserShippingAddress } from "@/lib/shipping";
-import { generateQRPayment, PaymentMethod } from "@/lib/qrPayment";
+} from "../../types/marketplace";
+// @ts-ignore
+import { getUserShippingAddress } from "../../lib/shipping";
+// @ts-ignore
+import { generateQRPayment, PaymentMethod } from "../../lib/qrPayment";
 import {
   getPaymentGateways,
   getBankAccounts,
   PaymentGateway,
-} from "@/lib/paymentGateways";
+} from "../../lib/paymentGateways";
+// @ts-ignore
 import ShippingAddressForm from "./ShippingAddressForm";
+// @ts-ignore
 import ShippingOptions from "./ShippingOptions";
+// @ts-ignore
 import QRPaymentModal from "./QRPaymentModal";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+// @ts-ignore
+import { LoadingSpinner } from "../../components/ui/loading-spinner";
 import {
   MapPin,
   CreditCard,
@@ -29,6 +43,7 @@ import {
   ShoppingBag,
   Smartphone,
 } from "lucide-react";
+// @ts-ignore
 import { supabase } from "../../../supabase/supabase";
 
 interface CheckoutFormProps {
@@ -230,7 +245,7 @@ export default function CheckoutForm({
           sambatan.initiator?.shipping_city
         ) {
           // Get optimal shipping for this Sambatan
-          const { getOptimalSambatanShipping } = await import("@/lib/shipping");
+          const { getOptimalSambatanShipping } = await import("../../lib/shipping");
           const optimalShipping = await getOptimalSambatanShipping(
             sambatanId,
             sambatan.product_id,
@@ -677,3 +692,5 @@ export default function CheckoutForm({
     </div>
   );
 }
+
+

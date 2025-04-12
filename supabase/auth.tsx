@@ -1,6 +1,6 @@
 // Fixed Google OAuth issues and display name
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "./supabase";
+import { supabase } from "../src/supabase/supabase";
 import { Session, User } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -125,9 +125,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const currentOrigin = window.location.origin;
 
       // For development, use the current origin; for production, use the configured site URL
-      const redirectUrl = import.meta.env.DEV
+      const redirectUrl = process.env.NODE_ENV === 'development'
         ? `${currentOrigin}/auth/callback`
-        : `${import.meta.env.VITE_SITE_URL || 'https://sensasiwangi.id'}/auth/callback`;
+        : `${process.env.NEXT_PUBLIC_SITE_URL || 'https://sensasiwangi.id'}/auth/callback`;
 
       console.log('OAuth redirect URL:', redirectUrl);
 

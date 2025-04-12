@@ -1,3 +1,4 @@
+// @ts-ignore
 import React from "react";
 
 interface RichMediaEmbedProps {
@@ -111,3 +112,4 @@ export default function RichMediaEmbed({
     </div>
   );
 }
+

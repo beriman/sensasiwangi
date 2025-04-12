@@ -1,5 +1,5 @@
 import { supabase } from "../../supabase/supabase";
-import { Sambatan, SambatanParticipant } from "@/types/marketplace";
+import { Sambatan, SambatanParticipant } from "../types/marketplace";
 
 // Check if tables exist and create them if they don't
 async function ensureSambatanTablesExist() {
@@ -535,3 +535,4 @@ export async function getSambatanByProduct(
   }
   return data;
 }
+

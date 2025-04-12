@@ -1,5 +1,7 @@
+// @ts-ignore
 import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
+// @ts-ignore
+import { Button } from "../../components/ui/button";
 import {
   ThumbsUp,
   ThumbsDown,
@@ -16,8 +18,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { VoteType } from "@/types/forum";
+} from "../../components/ui/alert-dialog";
+// @ts-ignore
+import { VoteType } from "../../types/forum";
 
 interface ReplyActionsProps {
   replyId: string;
@@ -110,3 +113,5 @@ export default function ReplyActions({
     </div>
   );
 }
+
+

@@ -1,5 +1,5 @@
 import { supabase } from "../../supabase/supabase";
-import { PrivateConversation, PrivateMessage } from "@/types/messages";
+import { PrivateConversation, PrivateMessage } from "../types/messages";
 
 // Get all conversations for a user
 export async function getUserConversations(
@@ -431,3 +431,4 @@ export async function editMessage(
   if (error) throw error;
   return data;
 }
+

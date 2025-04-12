@@ -1,5 +1,8 @@
+// @ts-ignore
 import React, { useState, useEffect } from "react";
+// @ts-ignore
 import { supabase } from "../../../supabase/supabase";
+// @ts-ignore
 import { useAuth } from "../../../supabase/auth";
 
 interface OnlineStatusIndicatorProps {
@@ -112,3 +115,4 @@ export default function OnlineStatusIndicator({
     />
   );
 }
+

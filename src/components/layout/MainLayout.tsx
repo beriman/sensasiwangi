@@ -9,7 +9,8 @@ interface MainLayoutProps {
   fullWidth?: boolean;
 }
 
-export default function MainLayout({
+function MainLayout({
+
   children,
   className,
   withPadding = true,
@@ -156,3 +157,6 @@ export default function MainLayout({
     </div>
   );
 }
+
+export { MainLayout };
+export default MainLayout;

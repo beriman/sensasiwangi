@@ -1,6 +1,6 @@
 import React from "react";
-import AdminLayout from "@/components/admin/AdminLayout";
-import ProductModeration from "@/components/admin/ProductModeration";
+import AdminLayout from "../../components/admin/AdminLayout";
+import ProductModeration from "../../components/admin/ProductModeration";
 
 const ProductsPage = () => {
   return (
@@ -11,3 +11,4 @@ const ProductsPage = () => {
 };
 
 export default ProductsPage;
+

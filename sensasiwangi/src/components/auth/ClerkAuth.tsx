@@ -1,4 +1,6 @@
+// @ts-ignore
 import { SignIn, SignUp } from "@clerk/clerk-react";
+// @ts-ignore
 import { dark } from "@clerk/themes";
 
 interface ClerkAuthProps {
@@ -61,3 +63,4 @@ export default function ClerkAuth({ mode }: ClerkAuthProps) {
     </div>
   );
 }
+

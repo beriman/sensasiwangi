@@ -1,6 +1,6 @@
 import React from "react";
-import AdminLayout from "@/components/admin/AdminLayout";
-import SellerOrderManagement from "@/components/admin/SellerOrderManagement";
+import AdminLayout from "../../components/admin/AdminLayout";
+import SellerOrderManagement from "../../components/admin/SellerOrderManagement";
 
 const SellerOrdersPage = () => {
   return (
@@ -11,3 +11,4 @@ const SellerOrdersPage = () => {
 };
 
 export default SellerOrdersPage;
+

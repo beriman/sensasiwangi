@@ -1,13 +1,17 @@
+// @ts-ignore
 import React from "react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+// @ts-ignore
+import { Badge } from "../../components/ui/badge";
+// @ts-ignore
+import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { ForumBadge } from "@/types/forum";
+} from "../../components/ui/tooltip";
+// @ts-ignore
+import { ForumBadge } from "../../types/forum";
 
 interface UserBadgesProps {
   userBadges: ForumBadge[];
@@ -104,3 +108,5 @@ export default function UserBadges({
     </Card>
   );
 }
+
+

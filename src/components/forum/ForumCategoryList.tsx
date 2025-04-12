@@ -22,7 +22,7 @@ interface ForumCategory {
   last_user_avatar: string | null;
 }
 
-export default function ForumCategoryList() {
+function ForumCategoryList() {
   const [categories, setCategories] = useState<ForumCategory[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +30,7 @@ export default function ForumCategoryList() {
     const fetchCategories = async () => {
       try {
         setLoading(true);
-        
+
         const { data, error } = await supabase
           .from("forum_categories")
           .select(`
@@ -48,9 +48,9 @@ export default function ForumCategoryList() {
             last_user_avatar
           `)
           .order("order", { ascending: true });
-        
+
         if (error) throw error;
-        
+
         setCategories(data || []);
       } catch (error) {
         console.error("Error fetching categories:", error);
@@ -58,7 +58,7 @@ export default function ForumCategoryList() {
         setLoading(false);
       }
     };
-    
+
     fetchCategories();
   }, []);
 
@@ -109,13 +109,13 @@ export default function ForumCategoryList() {
                   </Button>
                 </div>
               </div>
-              
+
               {category.last_thread_id && (
                 <div className="border-t border-gray-100 bg-gray-50 px-6 py-3">
                   <div className="flex items-center text-sm">
                     <Clock className="h-4 w-4 text-gray-400 mr-2" />
                     <span className="text-gray-500 mr-2">Latest:</span>
-                    <Link 
+                    <Link
                       to={`/forum/thread/${category.last_thread_id}`}
                       className="font-medium text-purple-600 hover:text-purple-700 truncate"
                       onClick={(e) => e.stopPropagation()}
@@ -146,3 +146,6 @@ export default function ForumCategoryList() {
     </div>
   );
 }
+
+export { ForumCategoryList };
+export default ForumCategoryList;

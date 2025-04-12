@@ -1,5 +1,5 @@
 import { supabase } from "../../supabase/supabase";
-import { FollowStats, UserFollower, UserFollowing } from "@/types/social";
+import { FollowStats, UserFollower, UserFollowing } from "../types/social";
 
 // Follow a user
 export async function followUser(
@@ -257,3 +257,4 @@ export async function getFollowing(
 
   return following;
 }
+

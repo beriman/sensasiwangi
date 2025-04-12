@@ -11,7 +11,7 @@ import {
   ForumBadge,
   ForumUserBadge,
   ForumMessage,
-} from "@/types/forum";
+} from "../types/forum";
 
 // Experience points constants
 const EXP_CREATE_THREAD = 1;
@@ -2388,3 +2388,4 @@ export async function getActiveSeasonalEvents(): Promise<ForumSeasonalEvent[]> {
 
   return eventsWithChallenges;
 }
+

@@ -1,5 +1,5 @@
 import { supabase } from "../../supabase/supabase";
-import { MarketplaceProduct } from "@/types/marketplace";
+import { MarketplaceProduct } from "../types/marketplace";
 
 // Get all active products with filtering options
 export async function getProducts(filters?: {
@@ -342,3 +342,4 @@ export async function deleteProductReview(reviewId: string) {
 
   if (error) throw error;
 }
+

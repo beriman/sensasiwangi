@@ -1,12 +1,15 @@
+// @ts-ignore
 import React from "react";
-import { Badge } from "@/components/ui/badge";
-import { ForumTag } from "@/types/forum";
+// @ts-ignore
+import { Badge } from "../../components/ui/badge";
+// @ts-ignore
+import { ForumTag } from "../../types/forum";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "../../components/ui/tooltip";
 
 interface TagBadgeProps {
   tag: ForumTag;
@@ -75,3 +78,5 @@ export default function TagBadge({
 
   return badgeContent;
 }
+
+

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Users, UserPlus, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../../supabase/auth";
-import { supabase } from "../../../supabase/supabase";
+import { supabase } from "../../supabase/supabase";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import FollowButton from "./FollowButton";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,7 @@ interface UserFollowData {
   is_following?: boolean;
 }
 
-export default function FollowSection({
+function FollowSection({
   userId,
   className = "",
 }: FollowSectionProps) {
@@ -115,26 +115,26 @@ export default function FollowSection({
 
   const handleFollowChange = (userId: string, isFollowing: boolean) => {
     // Update followers list
-    setFollowers(prev => 
-      prev.map(follower => 
+    setFollowers(prev =>
+      prev.map(follower =>
         follower.id === userId ? { ...follower, is_following: isFollowing } : follower
       )
     );
-    
+
     // Update following list
-    setFollowing(prev => 
-      prev.map(following => 
+    setFollowing(prev =>
+      prev.map(following =>
         following.id === userId ? { ...following, is_following: isFollowing } : following
       )
     );
   };
 
-  const filteredFollowers = followers.filter(follower => 
+  const filteredFollowers = followers.filter(follower =>
     follower.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (follower.full_name && follower.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const filteredFollowing = following.filter(following => 
+  const filteredFollowing = following.filter(following =>
     following.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (following.full_name && following.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
@@ -288,3 +288,6 @@ export default function FollowSection({
     </Card>
   );
 }
+
+export { FollowSection };
+export default FollowSection;

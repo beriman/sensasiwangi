@@ -1,16 +1,17 @@
 import React from 'react';
-import { MainLayout } from '../components/layout/MainLayout';
-import { NotificationCenter } from '../components/notifications/NotificationCenter';
-import { NotificationPreferences } from '../components/notifications/NotificationPreferences';
+import Head from 'next/head';
 
 export default function NotificationsPage() {
   const [activeTab, setActiveTab] = React.useState('notifications');
 
   return (
-    <MainLayout>
+    <>
+      <Head>
+        <title>Sensasiwangi - Notifications</title>
+      </Head>
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Notifications</h1>
-        
+
         <div className="flex border-b mb-6">
           <button
             className={`px-4 py-2 font-medium ${
@@ -33,13 +34,11 @@ export default function NotificationsPage() {
             Preferences
           </button>
         </div>
-        
-        {activeTab === 'notifications' ? (
-          <NotificationCenter />
-        ) : (
-          <NotificationPreferences />
-        )}
+
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <p className="text-center text-gray-500">Loading notifications...</p>
+        </div>
       </div>
-    </MainLayout>
+    </>
   );
 }

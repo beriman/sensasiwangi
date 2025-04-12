@@ -3,7 +3,7 @@ import {
   MarketplaceDispute,
   DisputeMessage,
   MarketplaceRefund,
-} from "@/types/dispute";
+} from "../types/dispute";
 
 // Create a new dispute
 export async function createDispute(
@@ -30,7 +30,7 @@ export async function getUserDisputes(): Promise<MarketplaceDispute[]> {
     .select(
       `
       *,
-      transaction:transaction_id(id, product_name, amount, 
+      transaction:transaction_id(id, product_name, amount,
         seller:seller_id(full_name, email),
         buyer:buyer_id(full_name, email)
       ),
@@ -50,7 +50,7 @@ export async function getSellerDisputes(): Promise<MarketplaceDispute[]> {
     .select(
       `
       *,
-      transaction:transaction_id(id, product_name, amount, 
+      transaction:transaction_id(id, product_name, amount,
         seller:seller_id(full_name, email),
         buyer:buyer_id(full_name, email)
       ),
@@ -77,7 +77,7 @@ export async function getDispute(
     .select(
       `
       *,
-      transaction:transaction_id(id, product_name, amount, 
+      transaction:transaction_id(id, product_name, amount,
         seller:seller_id(full_name, email),
         buyer:buyer_id(full_name, email)
       ),
@@ -262,7 +262,7 @@ export async function getAllDisputes(): Promise<MarketplaceDispute[]> {
     .select(
       `
       *,
-      transaction:transaction_id(id, product_name, amount, 
+      transaction:transaction_id(id, product_name, amount,
         seller:seller_id(full_name, email),
         buyer:buyer_id(full_name, email)
       ),

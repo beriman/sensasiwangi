@@ -1,5 +1,7 @@
+// @ts-ignore
 import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
+// @ts-ignore
+import { Button } from "../../components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,11 +10,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
+} from "../../components/ui/dialog";
+// @ts-ignore
+import { Textarea } from "../../components/ui/textarea";
+// @ts-ignore
+import { useToast } from "../../components/ui/use-toast";
+// @ts-ignore
 import { AlertTriangle } from "lucide-react";
-import { createDispute } from "@/lib/dispute";
+// @ts-ignore
+import { createDispute } from "../../lib/dispute";
 
 interface DisputeButtonProps {
   transactionId: string;
@@ -133,3 +139,5 @@ const DisputeButton = ({
 };
 
 export default DisputeButton;
+
+

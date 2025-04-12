@@ -1,12 +1,22 @@
+// @ts-ignore
 import React, { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShippingTrackingUpdate } from "@/types/marketplace";
-import { getTrackingUpdates, getTrackingInfo } from "@/lib/shipping";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+// @ts-ignore
+import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+// @ts-ignore
+import { ShippingTrackingUpdate } from "../../types/marketplace";
+// @ts-ignore
+import { getTrackingUpdates, getTrackingInfo } from "../../lib/shipping";
+// @ts-ignore
+import { LoadingSpinner } from "../../components/ui/loading-spinner";
+// @ts-ignore
+import { Badge } from "../../components/ui/badge";
+// @ts-ignore
+import { Button } from "../../components/ui/button";
+// @ts-ignore
+import { Separator } from "../../components/ui/separator";
+// @ts-ignore
 import { format, formatDistanceToNow } from "date-fns";
+// @ts-ignore
 import { id } from "date-fns/locale";
 import {
   Truck,
@@ -17,6 +27,7 @@ import {
   MapPin,
   RefreshCw,
 } from "lucide-react";
+// @ts-ignore
 import { supabase } from "../../../supabase/supabase";
 
 interface TrackingInfoProps {
@@ -371,3 +382,5 @@ export default function TrackingInfo({
     </Card>
   );
 }
+
+

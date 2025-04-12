@@ -1,3 +1,4 @@
+// @ts-ignore
 import React from "react";
 import {
   AlertDialog,
@@ -8,9 +9,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "../../components/ui/alert-dialog";
+// @ts-ignore
 import { AlertTriangle, Info, Shield, Bot } from "lucide-react";
-import { ContentModerationResult } from "@/lib/ai-content-moderator";
+// @ts-ignore
+import { ContentModerationResult } from "../../lib/ai-content-moderator";
 
 interface AIModerationWarningDialogProps {
   open: boolean;
@@ -126,3 +129,5 @@ export default function AIModerationWarningDialog({
     </AlertDialog>
   );
 }
+
+

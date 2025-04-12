@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { PostgrestError } from "@supabase/supabase-js";
-import { useSupabase } from "@/lib/supabase-provider";
+import { useSupabase } from "../lib/supabase-provider";
 
 type MutationFn<TVariables, TData> = (
   supabase: any,
@@ -42,3 +42,4 @@ export function useSupabaseMutation<TVariables, TData>(
 
   return { mutate, data, error, isLoading, reset };
 }
+

@@ -1,5 +1,5 @@
 import { supabase } from "../../supabase/supabase";
-import { NotificationItemProps } from "@/components/forum/NotificationItem";
+import { NotificationItemProps } from "../components/forum/NotificationItem";
 
 // Get user notifications
 export async function getUserNotifications(
@@ -99,3 +99,4 @@ export async function getUnreadNotificationCount(
     return 0;
   }
 }
+

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { PostgrestError } from "@supabase/supabase-js";
-import { useSupabase } from "@/lib/supabase-provider";
+import { useSupabase } from "../lib/supabase-provider";
 
 type QueryFn<T> = (supabase: any) => Promise<{
   data: T | null;
@@ -68,3 +68,4 @@ export function useSupabaseQuery<T>(
 
   return { data, error, isLoading, refetch };
 }
+

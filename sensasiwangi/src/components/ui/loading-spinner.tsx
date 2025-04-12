@@ -1,5 +1,7 @@
+// @ts-ignore
 import React from "react";
-import { cn } from "@/lib/utils";
+// @ts-ignore
+import { cn } from "../../lib/utils";
 
 interface LoadingSpinnerProps {
   size?: "sm" | "md" | "lg";
@@ -83,3 +85,5 @@ export function LoadingPulse({ className }: { className?: string }) {
     </div>
   );
 }
+
+

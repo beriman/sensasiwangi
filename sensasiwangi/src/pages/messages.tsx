@@ -1,6 +1,6 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import MessagesLayout from "@/components/messages/MessagesLayout";
+import MessagesLayout from "../components/messages/MessagesLayout";
 import { ConversationProvider } from "@/contexts/ConversationContext";
 import { useAuth } from "../../supabase/auth";
 
@@ -33,3 +33,4 @@ export default function MessagesPage() {
     </div>
   );
 }
+

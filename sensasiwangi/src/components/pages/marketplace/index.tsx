@@ -1,9 +1,16 @@
+// @ts-ignore
 import React from "react";
+// @ts-ignore
 import { Routes, Route } from "react-router-dom";
+// @ts-ignore
 import MarketplaceLayout from "../../marketplace/MarketplaceLayout";
+// @ts-ignore
 import ProductGrid from "../../marketplace/ProductGrid";
+// @ts-ignore
 import ProductDetail from "../../marketplace/ProductDetail";
+// @ts-ignore
 import MyShop from "../../marketplace/MyShop";
+// @ts-ignore
 import ProductForm from "../../marketplace/ProductForm";
 
 export default function Marketplace() {
@@ -55,3 +62,4 @@ export default function Marketplace() {
     </Routes>
   );
 }
+

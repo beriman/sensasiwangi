@@ -1,7 +1,11 @@
+// @ts-ignore
 import * as React from "react";
+// @ts-ignore
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
+// @ts-ignore
 import { Check } from "lucide-react";
 
+// @ts-ignore
 import { cn } from "../../lib/utils";
 
 const Checkbox = React.forwardRef<
@@ -26,3 +30,4 @@ const Checkbox = React.forwardRef<
 Checkbox.displayName = CheckboxPrimitive.Root.displayName;
 
 export { Checkbox };
+

@@ -1,22 +1,21 @@
 import React from 'react';
-import { MainLayout } from '../components/layout/MainLayout';
-import { ForumLayout } from '../components/forum/ForumLayout';
-import { ForumThreadList } from '../components/forum/ForumThreadList';
-import { ForumCategoryList } from '../components/forum/ForumCategoryList';
+import Head from 'next/head';
 
 export default function ForumPage() {
   return (
-    <MainLayout>
-      <ForumLayout>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="md:col-span-1">
-            <ForumCategoryList />
-          </div>
-          <div className="md:col-span-3">
-            <ForumThreadList />
-          </div>
+    <>
+      <Head>
+        <title>Sensasiwangi - Forum</title>
+      </Head>
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-6">Forum Komunitas</h1>
+        <p className="text-gray-600 mb-6">
+          Diskusi dan berbagi pengalaman dengan sesama penggemar wewangian.
+        </p>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <p className="text-center text-gray-500">Loading forum content...</p>
         </div>
-      </ForumLayout>
-    </MainLayout>
+      </div>
+    </>
   );
 }

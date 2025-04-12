@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { RealtimeChannel } from "@supabase/supabase-js";
-import { useSupabase } from "@/lib/supabase-provider";
+import { useSupabase } from "../lib/supabase-provider";
 
 type RealtimeSubscription = {
   table: string;
@@ -92,3 +92,4 @@ export function useSupabaseRealtime<T>(
 
   return { data, error, setData };
 }
+

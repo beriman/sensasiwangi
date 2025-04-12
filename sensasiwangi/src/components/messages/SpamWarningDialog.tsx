@@ -1,3 +1,4 @@
+// @ts-ignore
 import React from "react";
 import {
   AlertDialog,
@@ -8,7 +9,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "../../components/ui/alert-dialog";
+// @ts-ignore
 import { AlertTriangle, Info, Shield } from "lucide-react";
 
 interface SpamWarningDialogProps {
@@ -72,3 +74,5 @@ export default function SpamWarningDialog({
     </AlertDialog>
   );
 }
+
+

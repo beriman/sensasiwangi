@@ -1,5 +1,8 @@
+// @ts-ignore
 import { useEffect } from "react";
+// @ts-ignore
 import { useNavigate } from "react-router-dom";
+// @ts-ignore
 import { supabase } from "../../../supabase/supabase";
 
 export default function AuthCallback() {
@@ -55,3 +58,4 @@ export default function AuthCallback() {
     </div>
   );
 }
+

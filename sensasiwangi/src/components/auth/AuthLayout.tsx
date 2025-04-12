@@ -1,4 +1,6 @@
+// @ts-ignore
 import { ReactNode } from "react";
+// @ts-ignore
 import { Link } from "react-router-dom";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
@@ -62,3 +64,4 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     </div>
   );
 }
+

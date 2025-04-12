@@ -14,7 +14,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "../../components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
 
 interface ShareAchievementProps {
@@ -107,3 +107,4 @@ export default function ShareAchievement({
     </DropdownMenu>
   );
 }
+
