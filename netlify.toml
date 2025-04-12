@@ -15,5 +15,5 @@
 # Handle client-side routing
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/home"
   status = 200

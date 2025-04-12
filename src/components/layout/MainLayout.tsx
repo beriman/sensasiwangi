@@ -1,5 +1,5 @@
 import React, { ReactNode } from "react";
-import MainNavbar from "./MainNavbar";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 interface MainLayoutProps {
@@ -10,7 +10,6 @@ interface MainLayoutProps {
 }
 
 function MainLayout({
-
   children,
   className,
   withPadding = true,
@@ -18,7 +17,48 @@ function MainLayout({
 }: MainLayoutProps) {
   return (
     <div className="min-h-screen bg-[#f5f5f7] flex flex-col">
-      <MainNavbar />
+      <header className="fixed top-0 z-50 w-full bg-white border-b border-gray-200">
+        <div className="max-w-[1200px] mx-auto flex h-16 items-center justify-between px-4">
+          <div className="flex items-center">
+            <Link href="/" className="font-medium text-xl flex items-center">
+              <span className="bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent font-bold">
+                sensasiwangi.id
+              </span>
+            </Link>
+          </div>
+          <nav className="hidden md:flex items-center space-x-7 text-sm font-medium">
+            <Link
+              href="/"
+              className="hover:text-purple-600 transition-colors text-gray-700"
+            >
+              Beranda
+            </Link>
+            <Link
+              href="/forum"
+              className="hover:text-purple-600 transition-colors text-gray-700"
+            >
+              Forum
+            </Link>
+            <Link
+              href="/marketplace"
+              className="hover:text-purple-600 transition-colors text-gray-700"
+            >
+              Marketplace
+            </Link>
+          </nav>
+          <div className="flex items-center space-x-2">
+            <Link href="/login" className="text-sm font-medium text-gray-700 hover:text-purple-600">
+              Login
+            </Link>
+            <Link
+              href="/signup"
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+            >
+              Sign Up
+            </Link>
+          </div>
+        </div>
+      </header>
       <main
         className={cn(
           "flex-1 mt-16",
