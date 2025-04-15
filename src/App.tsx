@@ -99,14 +99,8 @@ function AppRoutes() {
           path="/marketplace/product/:productId"
           element={<ProductDetail />}
         />
-        <Route
-          path="/marketplace/wishlist"
-          element={<WishlistPage />}
-        />
-        <Route
-          path="/marketplace/sambatan"
-          element={<SambatanList />}
-        />
+        <Route path="/marketplace/wishlist" element={<WishlistPage />} />
+        <Route path="/marketplace/sambatan" element={<SambatanList />} />
         <Route
           path="/marketplace/sambatan/:sambatanId"
           element={<SambatanPage />}
@@ -184,10 +178,7 @@ function AppRoutes() {
             </PrivateRoute>
           }
         />
-        <Route
-          path="/share/:type/:id"
-          element={<SharedAchievement />}
-        />
+        <Route path="/share/:type/:id" element={<SharedAchievement />} />
         {/* Add tempobook route inside Routes */}
         {import.meta.env.VITE_TEMPO === "true" && (
           <Route path="/tempobook/*" element={<div />} />
